@@ -1,4 +1,4 @@
-// liquidity.house Knowledge Explorer — UI. All knowledge comes from /api/kb, reasoned over in-browser by Trealla.
+// Liquidity House Knowledge Explorer — UI. All knowledge comes from /api/kb, reasoned over in-browser by Trealla.
 
 import { DataSet, Network, type Edge, type Node as VisNode, type Options } from "vis-network/standalone";
 import {
@@ -490,7 +490,7 @@ async function renderExplain() {
 
 function overview(): HTMLElement {
   const wrap = el("div");
-  wrap.append(el("h2", { textContent: "How liquidity.house reasons" }),
+  wrap.append(el("h2", { textContent: "How Liquidity House reasons" }),
     el("p", { className: "muted" }, "Select or search anything to see what is known about it and, step by step, how each figure was worked out. Explanations come from the same rules and data as the calculations, so they always match the result."));
   wrap.append(el("h3", { className: "ex-section" }, "Rules"),
     ...snap.rules.map((r) => el("div", { className: "card" }, el("div", { textContent: r.text }), can("technical") ? el("div", { className: "muted" }, r.predicate) : "")));
@@ -574,7 +574,7 @@ function showLoadWarnings() {
   banner.hidden = !engine.warnings;
   banner.textContent = !engine.warnings ? ""
     : can("technical") ? `Problems while loading the knowledge base:\n${engine.warnings}`
-    : "Some knowledge could not be loaded, so parts of the picture may be missing. Please let the liquidity.house team know.";
+    : "Some knowledge could not be loaded, so parts of the picture may be missing. Please let the Liquidity House team know.";
 }
 
 function setStatus(state: "live" | "error" | "", text: string) {

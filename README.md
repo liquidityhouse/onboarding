@@ -1,4 +1,4 @@
-# liquidity.house Knowledge Explorer
+# Liquidity House Knowledge Explorer
 
 An explainable knowledge graph for onboarding and RiskX. The knowledge base is Prolog; it is served from one
 API endpoint and reasoned over in the browser by Trealla Prolog (WebAssembly).
