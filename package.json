@@ -1,0 +1,20 @@
+{
+  "name": "riskx-knowledge-explorer",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "start": "node server.ts",
+    "dev": "node --watch server.ts",
+    "typecheck": "tsc --noEmit",
+    "export": "node scripts/export-code.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "trealla": "^0.30.1",
+    "typescript": "5.9",
+    "vis-network": "^9.1.9"
+  }
+}

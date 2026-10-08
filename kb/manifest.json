@@ -1,0 +1,11 @@
+{
+  "description": "Ordered Prolog sources served as one program at /api/kb. Paths are relative to the repo root.",
+  "sources": [
+    "onboarding.pl",
+    "kb/riskx_kb.pl",
+    "kb/lexicon.pl",
+    "kb/schema.pl",
+    "kb/explain.pl",
+    "kb/api.pl"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node"
+    ],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "paths": {
+      "vis-network/standalone": [
+        "./node_modules/vis-network/declarations/entry-standalone.d.ts"
+      ]
+    }
+  },
+  "include": [
+    "server.ts",
+    "public/**/*.ts",
+    "scripts/**/*.ts"
+  ]
+}

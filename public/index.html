@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RiskX Knowledge Explorer</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "trealla": "https://esm.sh/trealla@0.30.1",
+        "vis-network/standalone": "https://unpkg.com/vis-network@9.1.9/standalone/esm/vis-network.min.js"
+      }
+    }
+  </script>
+  <script type="module" src="app.ts"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <strong>RiskX Knowledge Explorer</strong>
+      <span class="muted">Explore how operators, limits and risks connect</span>
+    </div>
+    <div class="topbar-controls">
+      <label>User
+        <select id="user"></select>
+      </label>
+      <span id="role-badge" class="badge"></span>
+      <span id="kb-status" class="kb-status"><i class="dot"></i><span>loading…</span></span>
+      <label>Refresh
+        <select id="refresh">
+          <option value="0">off</option>
+          <option value="10">10 s</option>
+          <option value="30">30 s</option>
+          <option value="300">5 min</option>
+        </select>
+      </label>
+      <button id="reload" type="button">Reload KB</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main class="layout">
+    <aside class="sidebar" aria-label="Exploration controls">
+      <section>
+        <h3>View</h3>
+        <div id="views" class="segmented" role="tablist"></div>
+      </section>
+
+      <section>
+        <h3>Focus</h3>
+        <div class="row">
+          <input id="focus-input" list="entity-list" placeholder="Search an entity…" autocomplete="off">
+          <datalist id="entity-list"></datalist>
+        </div>
+        <div class="row">
+          <button id="focus-back" type="button" title="Previous focus">← Back</button>
+          <button id="focus-clear" type="button">Show whole scope</button>
+        </div>
+        <div id="crumbs" class="crumbs"></div>
+        <label class="range">Depth <output id="depth-out"></output>
+          <input id="depth" type="range" min="1" max="5" step="1">
+        </label>
+      </section>
+
+      <section>
+        <h3>Scope</h3>
+        <div id="domains" class="checklist"></div>
+        <details>
+          <summary>Relations</summary>
+          <div id="predicates" class="checklist small"></div>
+        </details>
+      </section>
+
+      <section>
+        <h3>Display</h3>
+        <div class="checklist">
+          <label><input type="checkbox" id="opt-values"> Show values &amp; links</label>
+          <label><input type="checkbox" id="opt-derived"> Show derived conclusions</label>
+          <label><input type="checkbox" id="opt-labels"> Edge labels</label>
+          <label><input type="checkbox" id="opt-degree"> Size by connections</label>
+          <label><input type="checkbox" id="opt-recentre"> Click re-centres graph</label>
+          <label><input type="checkbox" id="opt-physics"> Physics</label>
+        </div>
+        <label class="inline" id="direction-wrap">Hierarchy direction
+          <select id="direction">
+            <option value="LR">Left → right</option>
+            <option value="UD">Top → down</option>
+            <option value="RL">Right → left</option>
+            <option value="DU">Bottom → up</option>
+          </select>
+        </label>
+      </section>
+
+      <section>
+        <h3>Entity types</h3>
+        <div id="types" class="types"></div>
+        <button id="types-reset" type="button" class="link">Reset colours &amp; shapes</button>
+      </section>
+    </aside>
+
+    <section class="stage" aria-label="Knowledge view">
+      <div id="graph" class="graph"></div>
+      <div id="table-view" class="table-view" hidden>
+        <input id="table-filter" type="search" placeholder="Filter triples…">
+        <div class="table-wrap"><table id="triples"></table></div>
+      </div>
+      <div id="console-view" class="console-view" hidden>
+        <p class="muted">Ask the knowledge base directly; every match is listed. Try
+          <code>mindmap_focus(dope, P, N, D).</code> or <code>rule_description(P, T).</code></p>
+        <textarea id="console-input" rows="3" spellcheck="false">soft_credit_limit(Op, Limit).</textarea>
+        <div class="row"><button id="console-run" type="button">Run (Ctrl+Enter)</button></div>
+        <pre id="console-output"></pre>
+      </div>
+      <div id="stage-empty" class="stage-empty" hidden></div>
+    </section>
+
+    <aside class="panel" aria-label="Explanations">
+      <div id="explain"></div>
+    </aside>
+  </main>
+</body>
+</html>
