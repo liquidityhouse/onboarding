@@ -54,7 +54,6 @@ noun(described_as, description).
 noun(file_summary, summary).
 noun(engine_requirement, 'required version').
 noun(identity_setting, setting).
-noun(stated_and_derived, 'stated and derived').
 noun(compression, 'compression template').
 noun(class_value, 'class-implied value').
 noun(identity, 'same pairs').

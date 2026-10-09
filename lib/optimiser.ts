@@ -54,7 +54,7 @@ export async function plans(audit: Audit, req: PlanRequest): Promise<Plan[]> {
     const best = witnesses.at(-1);
     if (!best) break;
     const chosen = best.Value.map((v) => v.replace(/^sel\((\w+)\)$/, "$1"));
-    const cost = best.Costs?.[0] ?? 0;
+    const cost = best.Costs?.[0] ?? 0;   // the symbols level (@2); Costs[1] counts candidates
     const plan = { candidates: chosen.map((c) => known.get(c)!.id), saving: baseline - cost, cost };
     if (found.length && plan.saving < 0) break;
     found.push(plan);

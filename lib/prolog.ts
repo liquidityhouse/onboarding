@@ -3,7 +3,7 @@
 
 import { load, Prolog } from "trealla";
 import type {
-  Context, Explanation, GoalExplanation, Graph, Overview, Session, User, Verification,
+  Audit, Context, Explanation, GoalExplanation, Graph, Overview, Session, User, Verification,
 } from "./kb-types.ts";
 
 let runtime: Promise<void> | null = null;
@@ -81,6 +81,10 @@ export class KbEngine {
   verify(who: string, service: string, done: string[], role: string): Promise<Verification> {
     return this.api<Verification>(
       `verify(${literal(who)}, ${literal(service)}, [${done.map(literal).join(", ")}], ${literal(role)})`);
+  }
+
+  audit(role: string): Promise<Audit> {
+    return this.api<Audit>(`audit(${literal(role)})`);
   }
 
   /** `expression` is parsed by Prolog (read_term_from_atom), never spliced into the query. */

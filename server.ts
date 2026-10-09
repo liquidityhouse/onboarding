@@ -11,6 +11,8 @@
 //   GET  /api/explain-goal?expression=&max=        English proof traces for a goal
 //   POST /api/query  { goal }           free-form goal, sandboxed     roles with the console feature
 //   GET  /api/kb, /api/kb.pl            the KB itself                 roles with the technical feature
+//   GET  /api/audit                     stated vs derived in symbols, compression candidates   technical
+//   POST /api/plan   { keep, kindsOff, maxRules, exceptions, alternatives }   best candidate sets   technical
 //   GET  /*                             ./public; *.ts served as JS with types stripped
 //
 // Which role may call which endpoint is knowledge, not code: kb/system.pl states what
@@ -29,7 +31,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { stripTypeScriptTypes } from "node:module";
 import { extname, join, normalize, resolve } from "node:path";
 import { current, type Current } from "./lib/kb-service.ts";
-import type { Conclusion, Problem, Session, SessionInfo } from "./lib/kb-types.ts";
+import type { Audit, Conclusion, PlanRequest, Problem, Session, SessionInfo } from "./lib/kb-types.ts";
+import { plans } from "./lib/optimiser.ts";
 import { literal } from "./lib/prolog.ts";
 import { runQuery } from "./lib/sandbox.ts";
 
@@ -107,6 +110,8 @@ const ENDPOINT: Record<string, string> = {
   "POST query": "POST /api/query",
   kb: "GET /api/kb",
   "kb.pl": "GET /api/kb.pl",
+  audit: "GET /api/audit",
+  "POST plan": "POST /api/plan",
 };
 
 /** Authorisation from the knowledge base: can_call(Role, Endpoint). */
@@ -127,6 +132,29 @@ function intParam(url: URL, name: string, fallback: number, min: number, max: nu
   const n = raw === null ? fallback : Number(raw);
   if (!Number.isInteger(n) || n < min || n > max) throw new HttpError(400, `${name} must be an integer from ${min} to ${max}`);
   return n;
+}
+
+/** Plan constraints, checked against what the audit knows: unknown names are refused, not passed on. */
+function planRequest(raw: Record<string, unknown>, audit: Audit): PlanRequest {
+  const names = (key: string, known: Set<string>): string[] => {
+    const v = raw[key] ?? [];
+    if (!Array.isArray(v) || v.some((x) => typeof x !== "string" || !known.has(x))) throw new HttpError(400, `${key} must list known names`);
+    return v as string[];
+  };
+  const int = (key: string, min: number, max: number): number | undefined => {
+    const v = raw[key];
+    if (v === undefined || v === null) return undefined;
+    if (!Number.isInteger(v) || (v as number) < min || (v as number) > max) throw new HttpError(400, `${key} must be an integer from ${min} to ${max}`);
+    return v as number;
+  };
+  if (raw.exceptions !== undefined && typeof raw.exceptions !== "boolean") throw new HttpError(400, "exceptions must be true or false");
+  return {
+    keep: names("keep", new Set(audit.candidates.map((c) => c.relation))),
+    kindsOff: names("kindsOff", new Set(audit.kinds.map((k) => k.id))),
+    maxRules: int("maxRules", 0, 100),
+    exceptions: raw.exceptions as boolean | undefined,
+    alternatives: int("alternatives", 1, 5) ?? 3,
+  };
 }
 
 async function body(req: IncomingMessage, limit = 16_384): Promise<Record<string, unknown>> {
@@ -208,6 +236,12 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL) {
       } catch (e) {
         return json(res, { error: (e as Error).message }, 422);
       }
+    }
+    case "audit":
+      return answer(res, await cached(`audit|${role}`, () => engine.audit(role)));
+    case "POST plan": {
+      const audit = await cached<Audit>(`audit|${role}`, () => engine.audit(role));
+      return json(res, { plans: await plans(audit, planRequest(await body(req), audit)) });
     }
     case "kb":
     case "kb.pl": {

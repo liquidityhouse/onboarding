@@ -12,7 +12,7 @@
 %   kind_off(K)     constraint: template K is not used
 %   max_rules(M)    constraint: at most M candidates are applied
 %   no_exceptions   constraint: only candidates without exceptions
-%   avoid(P, C), plan_size(P, N)   plans found before, so the next best is found
+%   avoid(P, C), plan_size(P, N)   plans found before, so a different one is found
 %
 % What is minimised is the symbols the chosen candidates add plus those of the facts
 % that remain, so candidates covering the same facts are not counted twice (as in
@@ -27,14 +27,19 @@ dropped(F) :- sel(C), covers(C, F).
 :- no_exceptions, sel(C), exceptions(C, N), N > 0.
 :- max_rules(M), #count { C : sel(C) } > M.
 
-% No relation may end up derived from itself.
+% A new rule may not close a cycle: its relation would end up derived from itself.
+% (Existing recursion, such as relies_on/2 reading itself, is fine.)
 reads(R, Q) :- sel(C), head(C, R), body(C, Q).
 path(R, Q) :- reads(R, Q).
 path(R, S) :- path(R, Q), reads(Q, S).
-:- sel(C), head(C, R), path(R, R).
+:- sel(C), head(C, R), body(C, Q), path(Q, R).
+:- sel(C), head(C, R), body(C, R).
 
-% A plan found before is not found again.
-:- plan_size(P, N), N = #count { C : sel(C) }, N = #count { C : sel(C), avoid(P, C) }.
+% Each alternative leaves out something every earlier plan chose, so plans differ in
+% substance rather than by an extra candidate that saves nothing.
+:- plan_size(P, N), N = #count { C : sel(C), avoid(P, C) }.
 
-#minimize { Cost,c,C : sel(C), cand(C, Cost) ; W,f,F : stated(F, W), not dropped(F) }.
+% Fewest symbols first; on a tie, fewest candidates.
+#minimize { Cost@2,c,C : sel(C), cand(C, Cost) ; W@2,f,F : stated(F, W), not dropped(F) }.
+#minimize { 1@1,C : sel(C) }.
 #show sel/1.

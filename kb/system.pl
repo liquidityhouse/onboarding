@@ -21,6 +21,7 @@ component(kb_source, module).
 component(prolog_engine, module).
 component(query_sandbox, module).
 component(kb_types, module).
+component(optimiser, module).
 component(knowledge_base, knowledge).
 component(api_check, script).
 component(mcp_check, script).
@@ -41,6 +42,8 @@ source_file(prolog_engine, 'lib/prolog.ts').
 source_file(query_sandbox, 'lib/sandbox.ts').
 source_file(query_sandbox, 'lib/query-worker.ts').
 source_file(kb_types, 'lib/kb-types.ts').
+source_file(optimiser, 'lib/optimiser.ts').
+source_file(optimiser, 'kb/plan.lp').
 source_file(api_check, 'scripts/api-check.ts').
 source_file(mcp_check, 'scripts/mcp-check.ts').
 source_file(code_export, 'scripts/export-code.ts').
@@ -53,6 +56,7 @@ uses(explorer_ui, web_server).
 uses(explorer_ui, 'vis-network').
 uses(web_server, kb_service).
 uses(web_server, query_sandbox).
+uses(web_server, optimiser).
 uses(mcp_server, kb_service).
 uses(mcp_server, '@modelcontextprotocol/sdk').
 uses(kb_service, kb_source).
@@ -60,6 +64,7 @@ uses(kb_service, prolog_engine).
 uses(kb_source, knowledge_base).
 uses(prolog_engine, trealla).
 uses(query_sandbox, trealla).
+uses(optimiser, 'clingo-wasm').
 uses(readme_builder, kb_service).
 uses(api_check, web_server).
 uses(mcp_check, mcp_server).
@@ -88,6 +93,8 @@ access('GET /api/explain-goal', signed_in).
 access('POST /api/query', console).
 access('GET /api/kb', technical).
 access('GET /api/kb.pl', technical).
+access('GET /api/audit', technical).
+access('POST /api/plan', technical).
 
 answers_with('GET /api/session', session).
 answers_with('GET /api/graph', graph).
@@ -96,6 +103,7 @@ answers_with('GET /api/overview', overview).
 answers_with('GET /api/context/:entity', context).
 answers_with('GET /api/verify/:service', verify).
 answers_with('GET /api/explain-goal', explain_goal).
+answers_with('GET /api/audit', audit).
 
 % --- MCP tools and the knowledge request each answers with ---
 mcp_tool(get_knowledge_overview, overview).
@@ -118,6 +126,7 @@ offers(explorer_ui, scope).
 offers(explorer_ui, entity_types).
 offers(explorer_ui, per_user_settings).
 offers(explorer_ui, shareable_state).
+offers(explorer_ui, knowledge_audit).
 
 purpose(stated_and_derived, 'to mark every connection as stated (solid line) or derived by a rule (dashed): hover a connection for how it is inferred, click it for why it holds').
 purpose(views, 'to switch between the mind map, the hierarchy in four directions, the triple table and the query console').
@@ -125,6 +134,7 @@ purpose(focus, 'to re-centre on an entity by clicking or searching, go back thro
 purpose(scope, 'to toggle domains, single relations, derived facts, and value, link and description leaves').
 purpose(entity_types, 'to show or hide each type of entity and change its colour and shape').
 purpose(per_user_settings, 'to remember settings for each user and start newly visible domains ticked').
+purpose(knowledge_audit, 'to count what is stated, generated and derived in symbols, list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints').
 purpose(shareable_state, 'to keep the user, view, focus and depth in the URL, so a view can be shared').
 
 % --- How we work on the knowledge base ---
@@ -137,6 +147,7 @@ practice(fresh_format).
 practice(dynamic_rules).
 practice(isolate_reflection).
 practice(regenerate_readme).
+practice(check_audit).
 
 purpose(write_once, 'to state a fact only when nothing else records it, and add a rule for anything that follows from other facts').
 purpose(generate_recorded, 'to generate what the repository already records (KB files, packages, npm scripts, file descriptions) instead of restating it').
@@ -146,6 +157,7 @@ purpose(describe_in_headers, 'to describe each file in the first sentence of its
 purpose(fresh_format, 'to format text into a fresh variable and then unify (Url = Url0), because in Trealla format(atom(Bound), …) inside a clause succeeds without checking').
 purpose(dynamic_rules, 'to declare rules the explorer explains as dynamic, because clause/2 cannot read static predicates in Trealla').
 purpose(isolate_reflection, 'to ask predicate_property/2 only under negation (\\+ \\+ to keep the answer), never catch errors from clause/2, and walk terms with separate clauses and functor/3 and arg/3 rather than if-then-else or =.., because in Trealla these leave or lose bindings when backtracking').
+purpose(check_audit, 'to look at the audit before adding facts: a candidate that saves symbols means knowledge is repeated, and a rule that saves none is kept for what it explains').
 purpose(regenerate_readme, 'to change the knowledge (kb/*.pl, file headers, package.json) and run npm run readme, rather than editing README.md').
 
 % --- Inferred knowledge ---
