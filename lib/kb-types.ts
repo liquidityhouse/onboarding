@@ -14,10 +14,20 @@ export interface Domain { id: string; label: string }
 export interface Predicate { id: string; arity: number; domain: string; label: string; derived: boolean }
 export interface TypeStyle { id: string; label: string; color: string; shape: string }
 /** One clause of a rule: its words, its slots (variables, named after concepts) and, for technical roles, the clause. */
-export interface Rule { predicate: string; clause: number; text: string; slots: string[]; pattern?: string }
+export interface Rule {
+  predicate: string; clause: number; text: string; slots: string[];
+  /** Technical roles: the clause as written in its file… */
+  source?: { file: string; line: number; text: string };
+  /** …or reprinted from the loaded clause when the file has none. */
+  pattern?: string;
+}
 export interface Binding { name: string; value: string }
 /** How a derived fact was made: which clause of its rule, and what each slot stood for. */
-export interface Via { rule: number; bindings: Binding[] }
+export interface Via {
+  rule: number; bindings: Binding[];
+  /** Technical roles: the clause with this fact's values, and the query that asks for it again. */
+  instance?: string; query?: string;
+}
 export interface Entity { id: string; type: string; label: string }
 export interface Triple {
   s: string | number; p: string; o: string | number;

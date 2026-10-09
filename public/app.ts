@@ -108,8 +108,69 @@ function slotted(rule: Rule, via?: Via | null): HTMLElement {
   return out;
 }
 
+/** Prolog with its comments, quoted atoms, strings, numbers, variables, functors and operators marked. */
+const PL_TOKEN = /(%[^\n]*)|('(?:[^'\\]|\\.|'')*')|("(?:[^"\\]|\\.)*")|(\b\d+(?:\.\d+)?\b)|(\b[A-Z_][A-Za-z0-9_]*\b)|(\b[a-z][A-Za-z0-9_]*(?=\())|(:-|\\\+|=\.\.|\\==|==|=<|>=|\bis\b|\?-|[=<>+*\/-])/g;
+const PL_CLASS = ["", "pl-comment", "pl-atom", "pl-string", "pl-number", "pl-var", "pl-functor", "pl-op"];
+function prolog(code: string, className = ""): HTMLElement {
+  const pre = el("pre", { className: `code ${className}` });
+  let at = 0;
+  for (const m of code.matchAll(PL_TOKEN)) {
+    pre.append(code.slice(at, m.index));
+    const group = m.slice(1).findIndex((g) => g !== undefined) + 1;
+    pre.append(el("span", { className: PL_CLASS[group] }, m[0]));
+    at = m.index + m[0].length;
+  }
+  pre.append(code.slice(at));
+  return pre;
+}
+
+/** A value as Prolog writes it: bare when it can be, quoted otherwise. */
+const plValue = (v: unknown) =>
+  typeof v === "number" ? String(v) : /^[a-z][A-Za-z0-9_]*$/.test(String(v)) ? String(v) : lit(String(v));
+
+/**
+ * Technical detail of a derivation: the rule as written in its file (variables unbound),
+ * the same clause with this fact's values, and the query that asks for it, which can be
+ * run again. `expect` is the fact's sentence, to mark its answer among the others.
+ */
+function prologDetail(rule: Rule, via: Via, expect?: string): HTMLElement | null {
+  const code = rule.source?.text ?? rule.pattern;
+  if (!code) return null;
+  const where = rule.source ? ` · ${rule.source.file}:${rule.source.line}` : "";
+  const box = el("details", { className: "prolog" }, el("summary", {}, `Prolog${where}`),
+    el("div", { className: "via-label" }, "Rule as written"), prolog(code));
+  if (via.instance) box.append(el("div", { className: "via-label" }, "With this fact's values"), prolog(via.instance));
+  if (via.query) {
+    const query = via.query;
+    const out = el("pre", { className: "code query-out" });
+    const again = el("button", { type: "button", className: "run", textContent: "Run again" });
+    const ask = async () => {
+      out.textContent = "…";
+      try {
+        const ex = await api<GoalExplanation>(`/api/explain-goal?expression=${encodeURIComponent(query)}&max=20`);
+        const answers = ex.answers ?? [];
+        out.replaceChildren(...(ex.holds && answers.length ? answers.flatMap((a, i) => {
+          const b = Object.entries(a.bindings);
+          const line = b.length ? b.map(([k, v]) => `${k} = ${plValue(v)}`).join(", ") : "true";
+          const last = i === answers.length - 1 && (ex.answers_total ?? 0) <= answers.length;
+          return [el("span", { className: a.text === expect ? "this-answer" : "" }, `${line}${last ? "." : " ;"}`),
+            ...(a.text === expect ? [el("span", { className: "muted" }, "   ← this fact")] : []), "\n"];
+        }) : ["false."]));
+        if ((ex.answers_total ?? 0) > answers.length) out.append(`… ${ex.answers_total! - answers.length} more`);
+      } catch (e) {
+        out.textContent = (e as Error).message;
+      }
+    };
+    again.onclick = ask;
+    let asked = false;
+    box.addEventListener("toggle", () => { if (box.open && !asked) { asked = true; ask(); } });
+    box.append(el("div", { className: "via-label" }, "Query"), prolog(`?- ${query}.`), out, again);
+  }
+  return box;
+}
+
 /** How a derived fact was made: the general rule (slots open), then what each slot stood for here. */
-function viaBlock(pred: string, via: Via | null | undefined, compact = false): HTMLElement {
+function viaBlock(pred: string, via: Via | null | undefined, compact = false, expect?: string): HTMLElement {
   const rule = ruleOf(pred, via);
   if (!rule || !via) {
     return el("div", { className: "via" }, ...rulesFor(pred).map((r) => el("div", { className: "rule-text" }, `How: ${r.text}`)));
@@ -118,11 +179,20 @@ function viaBlock(pred: string, via: Via | null | undefined, compact = false): H
   const box = el("div", { className: "via" },
     el("div", { className: "via-label" }, count > 1 ? `General rule ${rule.clause} of ${count}` : "General rule"),
     el("div", { className: "rule-text" }, slotted(rule)));
-  if (!compact && rule.pattern) box.append(el("pre", { className: "raw pattern", textContent: rule.pattern }));
   box.append(el("div", { className: "via-label" }, "Applied here with"),
     el("div", { className: "bindings" }, ...via.bindings.map((b) =>
       el("span", { className: "binding" }, el("span", { className: "slot" }, b.name), " = ", el("b", {}, b.value)))));
+  const detail = compact ? null : prologDetail(rule, via, expect);
+  if (detail) box.append(detail);
   return box;
+}
+
+/** A rule clause's Prolog, folded, for technical roles. */
+function ruleCode(r: Rule): HTMLElement | string {
+  const code = r.source?.text ?? r.pattern;
+  if (!code) return "";
+  const where = r.source ? `${r.source.file}:${r.source.line}` : `${r.predicate} · clause ${r.clause}`;
+  return el("details", { className: "prolog" }, el("summary", { className: "muted" }, `Prolog · ${where}`), prolog(code));
 }
 
 /** The same in one line of text, for plain tooltips. */
@@ -566,7 +636,7 @@ async function renderExplain() {
     const bySeverity = [...ex.conclusions].sort((a, b) => Number(b.severity === "warning") - Number(a.severity === "warning"));
     for (const c of bySeverity) {
       const details = el("details", { open: c.severity === "warning" || session().role === "risk_officer" },
-        el("summary", {}, "How and why"), viaBlock(c.predicate, c.via), howWhyKey(), linesList(c.lines, ruleShown(c.lines, c.via)));
+        el("summary", {}, "How and why"), viaBlock(c.predicate, c.via, false, c.text), howWhyKey(), linesList(c.lines, ruleShown(c.lines, c.via)));
       if (c.proof) {
         details.append(el("details", {}, el("summary", {}, "Technical detail"), el("pre", { className: "raw", textContent: c.proof })));
       }
@@ -629,7 +699,7 @@ async function whyBody(t: Triple): Promise<HTMLElement> {
     const box = el("div", {}, el("div", { className: "headline", textContent: a.text }));
     if (!a.derived) { box.append(el("p", { className: "muted" }, STATED_HINT)); return box; }
     const via = a.via ?? t.via;
-    box.append(viaBlock(t.pred, via), howWhyKey(), linesList(a.lines ?? [], ruleShown(a.lines ?? [], via)));
+    box.append(viaBlock(t.pred, via, false, a.text), howWhyKey(), linesList(a.lines ?? [], ruleShown(a.lines ?? [], via)));
     if (a.proof) box.append(el("details", {}, el("summary", {}, "Technical detail"), el("pre", { className: "raw", textContent: a.proof })));
     return box;
   } catch (e) {
@@ -660,7 +730,7 @@ async function showTriple(t: Triple) {
     el("div", { className: `card ${t.derived ? "derived" : ""}` }, await whyBody(t)));
   if (others.length) {
     parts.push(el("details", { className: "other-rules" }, el("summary", {}, `Other rules for “${t.p}”`),
-      ...others.map((r) => el("div", { className: "card rule" }, slotted(r), r.pattern ? el("pre", { className: "raw pattern", textContent: r.pattern }) : ""))));
+      ...others.map((r) => el("div", { className: "card rule" }, slotted(r), ruleCode(r)))));
   }
   panel.replaceChildren(...parts);
 }
@@ -670,8 +740,7 @@ function overview(): HTMLElement {
   wrap.append(el("h2", { textContent: "How Liquidity House reasons" }),
     el("p", { className: "muted" }, "Select or search anything to see what is known about it and, step by step, how each figure was worked out. Explanations come from the same rules and data as the calculations, so they always match the result."));
   wrap.append(el("h3", { className: "ex-section", title: "Every derived fact comes from one of these rules" }, "Rules: how derived facts are made"),
-    ...snap.rules.map((r) => el("div", { className: "card" }, el("div", {}, slotted(r)),
-      r.pattern ? el("details", {}, el("summary", { className: "muted" }, `${r.predicate} · clause ${r.clause}`), el("pre", { className: "raw pattern", textContent: r.pattern })) : "")));
+    ...snap.rules.map((r) => el("div", { className: "card" }, el("div", {}, slotted(r)), ruleCode(r))));
   const warnings = snap.triples.filter((t) => t.severity === "warning");
   if (warnings.length) {
     wrap.append(el("h3", { className: "ex-section" }, "Needs attention"),

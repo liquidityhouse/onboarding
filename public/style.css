@@ -10,6 +10,12 @@
   --warn-bg: #fff5f5;
   --ok: #2f9e44;
   --radius: 8px;
+  --pl-comment: #6a737d;
+  --pl-atom: #0a7f3f;
+  --pl-number: #b35900;
+  --pl-var: #9c36b5;
+  --pl-functor: #1c5bd8;
+  --pl-op: #c92a2a;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -24,6 +30,12 @@
     --warn: #ff6b6b;
     --warn-bg: #2a1b1d;
     --ok: #51cf66;
+    --pl-comment: #8b949e;
+    --pl-atom: #7ee2a8;
+    --pl-number: #ffb86b;
+    --pl-var: #e599f7;
+    --pl-functor: #91a7ff;
+    --pl-op: #ff8787;
     color-scheme: dark;
   }
 }
@@ -172,7 +184,19 @@ td button.why { font-size: 11px; padding: 1px 6px; }
 .bindings { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; font-size: 12.5px; }
 .binding .slot { color: var(--accent); }
 .edge-tip .binding .slot { color: #364fc7; }
-pre.raw.pattern { word-break: normal; overflow-x: auto; white-space: pre; }
+/* Prolog for technical roles: the rule as written, its values, the query */
+details.prolog { margin-top: 8px; }
+details.prolog > summary { font-size: 12px; }
+pre.code { font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); padding: 8px 10px; border-radius: 6px; margin: 4px 0; white-space: pre; overflow-x: auto; tab-size: 4; }
+pre.code.query-out { min-height: 1.4em; }
+.pl-comment { color: var(--pl-comment); font-style: italic; }
+.pl-atom, .pl-string { color: var(--pl-atom); }
+.pl-number { color: var(--pl-number); }
+.pl-var { color: var(--pl-var); }
+.pl-functor { color: var(--pl-functor); }
+.pl-op { color: var(--pl-op); }
+.this-answer { font-weight: 700; }
+button.run { font-size: 11.5px; padding: 1px 8px; }
 .other-rules { margin-top: 8px; }
 details.card > summary { cursor: pointer; }
 
