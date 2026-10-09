@@ -1,4 +1,4 @@
-% api.pl — knowledge-graph bridge and JSON API consumed by the browser.
+% api.pl — the knowledge-graph bridge and the JSON requests the web and MCP servers ask.
 %
 % The web server and the MCP server call api(Request) and parse the JSON written
 % to stdout. Every request that returns knowledge takes the asker's role and

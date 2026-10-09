@@ -1,5 +1,5 @@
-// The one live engine both servers share: rebuilt when the KB files change,
-// with answers cached per KB version (callers put the role in the cache key).
+// The one live engine both servers share, rebuilt when the KB files change, with answers cached
+// per KB version. Callers put the role in the cache key.
 
 import { loadKb, type Kb } from "./kb-source.ts";
 import { KbEngine } from "./prolog.ts";

@@ -4,7 +4,7 @@
 % overwrite. Rules derive credit limits and warnings from them. Everything the
 % explainer needs to inspect with clause/2 is declared dynamic.
 %
-% NOTE: operators other than 'dope' are illustrative sample data.
+% Operators marked sample_data/1 are illustrative, not real.
 
 :- dynamic(operator/2).
 :- dynamic(ggr_90d/2).
@@ -15,6 +15,7 @@
 :- dynamic(soft_credit_limit/2).
 :- dynamic(daily_allowance/2).
 :- dynamic(exposure_warning/2).
+:- dynamic(in_portfolio/2).
 
 % --- 1. Ground operator facts (pulled from Metabase / RiskX) ---
 operator(dope, active).
@@ -41,6 +42,10 @@ wallet_exposure(dope, 15000).
 wallet_exposure(nordbet, 30000).
 wallet_exposure(spinhaus, 18000).
 wallet_exposure(vegaplay, 2500).
+
+sample_data(nordbet).
+sample_data(spinhaus).
+sample_data(vegaplay).
 
 % --- 2. System-wide risk weights & coefficients ---
 risk_weight(ggr_factor, 0.50).
@@ -79,10 +84,12 @@ exposure_warning(Operator, normal) :-
     risk_weight(exposure_threshold, T),
     Exp =< Dep * T.
 
-% --- 4. Platform links (connect operators to the RiskX app) ---
-monitored_by(dope, riskx).
-monitored_by(nordbet, riskx).
-monitored_by(spinhaus, riskx).
-monitored_by(vegaplay, riskx).
+% --- 4. Platform links ---
+% RiskX monitors the operator portfolio as a whole; every operator is part of
+% it, so a new operator needs no link of its own.
+monitors(riskx, operators).
+
+in_portfolio(Operator, operators) :-
+    operator(Operator, _).
 
 data_source(riskx, metabase).

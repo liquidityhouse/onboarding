@@ -8,6 +8,7 @@
     "kb/lexicon.pl",
     "kb/schema.pl",
     "kb/explain.pl",
-    "kb/api.pl"
+    "kb/api.pl",
+    "kb/readme.pl"
   ]
 }

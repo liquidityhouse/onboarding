@@ -1,5 +1,5 @@
-// Liquidity House Knowledge Explorer — UI. The server reasons over the knowledge base and
-// answers only within the viewer's role; this page draws and filters what it is given.
+// The explorer UI: draws and filters the role-scoped knowledge the server sends, and shows how
+// every derived fact was reached. The server reasons over the knowledge base; this page never sees it.
 
 import { DataSet, Network, type Edge, type Node as VisNode, type Options } from "vis-network/standalone";
 import type { Explanation, GoalExplanation, Graph, Line, Session, SessionInfo, Triple, TypeStyle } from "../lib/kb-types.ts";

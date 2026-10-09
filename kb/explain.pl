@@ -57,8 +57,11 @@ name_body(risk_weight(W, V), _) :- atom(W), var(V), !,
     noun_of(W, N), V = n(N, weight).
 name_body(G, C) :- compound(G), G =.. [P, S, O], !,
     (   var(S) -> subject_noun(P, SN0, Ty), fresh_name(C, none, SN0, SN), S = n(SN, Ty) ; true ),
-    (   var(O) -> noun_of(P, N0), fresh_name(C, S, N0, N), O = n(N, P) ; true ).
+    (   var(O) -> object_noun(P, N0), fresh_name(C, S, N0, N), O = n(N, P) ; true ).
 name_body(_, _).
+
+object_noun(P, N) :- object(P, N), !.
+object_noun(P, N) :- noun_of(P, N).
 
 % What P's subjects are called: the lexicon's subject/2 if it says, otherwise
 % read from P's own facts (repo/2 -> "repository").
@@ -195,6 +198,9 @@ rule_text((H :- B), T) :-
     ->  connective(when, When), join_and(Cs, CT),
         value_text(P, V, VT), copula(P, Is),
         format(atom(T0), "the ~w ~w ~w ~w ~w", [N, Is, VT, When, CT])
+    ;   goal_texts(B, Cs), Cs \== []
+    ->  H =.. [P|Args], clause_text(P, Args, HT), join_and(Cs, CT), connective(when, When),
+        format(atom(T0), "~w ~w ~w", [HT, When, CT])
     ;   inputs(B, Is), join_and(Is, IT),
         format(atom(T0), "the ~w follows from ~w", [N, IT]) ), !,
     as_sentence(T0, T).

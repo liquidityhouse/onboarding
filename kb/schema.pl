@@ -40,7 +40,7 @@ kb_predicate(deployed_on, 2, platform).
 kb_predicate(cluster_domain, 2, platform).
 kb_predicate(riskx, 2, platform).
 kb_predicate(data_source, 2, platform).
-kb_predicate(monitored_by, 2, platform).
+kb_predicate(monitors, 2, platform).
 kb_predicate(operator, 2, risk).
 kb_predicate(ggr_90d, 2, risk).
 kb_predicate(dau, 2, risk).
@@ -56,11 +56,18 @@ kb_predicate(answers_with, 2, system).
 kb_predicate(mcp_tool, 2, system).
 kb_predicate(purpose, 2, system).
 kb_predicate(package_version, 2, system).
+kb_predicate(file_summary, 2, system).
+kb_predicate(engine_requirement, 2, system).
+kb_predicate(npm_script, 2, system).
+kb_predicate(registered_in, 2, system).
+kb_predicate(identity_setting, 2, system).
+kb_predicate(offers, 2, system).
 
 % Rules whose conclusions appear as dashed edges and can be explained.
 derived_predicate(soft_credit_limit, 2, risk).
 derived_predicate(daily_allowance, 2, risk).
 derived_predicate(exposure_warning, 2, risk).
+derived_predicate(in_portfolio, 2, platform).
 derived_predicate(url, 2, onboarding).
 derived_predicate(sibling_repo, 2, onboarding).
 derived_predicate(belongs_to, 2, onboarding).
@@ -71,11 +78,13 @@ derived_predicate(relies_on, 2, system).
 derived_predicate(can_call, 2, system).
 derived_predicate(served_by, 2, system).
 derived_predicate(same_answer, 2, system).
+derived_predicate(runs_component, 2, system).
+derived_predicate(described_as, 2, system).
 
 % --- Entity types (first matching rule wins) ---
 entity_type(E, value) :- number(E), !.
 entity_type(E, url) :- atom(E), sub_atom(E, 0, _, _, http), !.
-entity_type(E, text) :- catch(purpose(_, E), _, fail), !.
+entity_type(E, text) :- catch((purpose(_, E) ; file_summary(_, E)), _, fail), !.
 entity_type(E, file) :- catch((source_file(_, E) ; kb_file(_, E)), _, fail), !.
 entity_type(E, Kind) :- catch(component(E, Kind), _, fail), !.
 entity_type(E, library) :- catch(package_version(E, _), _, fail), !.
@@ -85,6 +94,10 @@ entity_type(E, request) :- catch((answers_with(_, E) ; mcp_tool(_, E)), _, fail)
 entity_type(E, feature) :- catch((access(_, E) ; role_feature(_, E)), _, fail), !.
 entity_type(E, kind) :- catch(executes_in(E, _), _, fail), !.
 entity_type(E, runtime) :- catch(executes_in(_, E), _, fail), !.
+entity_type(E, npm_script) :- catch(npm_script(E, _), _, fail), !.
+entity_type(E, identity_mode) :- catch(identity_setting(E, _), _, fail), !.
+entity_type(E, capability) :- catch(offers(_, E), _, fail), !.
+entity_type(E, practice) :- catch(practice(E), _, fail), !.
 entity_type(E, identifier) :- catch((slack_client_id(_, E) ; slack_channel_id(_, E)), _, fail), !.
 entity_type(E, account) :- catch((github_account(_, E) ; jira_site(_, E)), _, fail), !.
 entity_type(E, domain) :- catch((email_domain(_, E) ; cluster_domain(_, E) ; product_domain(_, E) ; managed_by(_, E)), _, fail), !.
@@ -106,6 +119,7 @@ entity_type(E, env_setup) :- catch(needs_setup(_, E), _, fail), !.
 entity_type(E, organisation) :- catch(github_account(E, _), _, fail), !.
 entity_type(E, weight) :- catch(risk_weight(E, _), _, fail), !.
 entity_type(E, data_source) :- catch(data_source(_, E), _, fail), !.
+entity_type(E, portfolio) :- catch(monitors(_, E), _, fail), !.
 entity_type(E, dataset) :- catch((riskx(E, _) ; riskx(_, E)), _, fail), !.
 entity_type(E, status) :- catch((operator(_, E) ; exposure_warning(_, E)), _, fail), !.
 entity_type(E, step) :- catch(onboarding(E), _, fail), !.
@@ -114,6 +128,7 @@ entity_type(_, concept).
 
 % type_style(Type, DefaultColour, Shape) — shapes are vis-network shapes.
 type_style(operator, '#e4572e', dot).
+type_style(portfolio, '#ff8787', hexagon).
 type_style(repository, '#4c6ef5', box).
 type_style(organisation, '#7048e8', hexagon).
 type_style(team, '#845ef7', hexagon).
@@ -151,6 +166,10 @@ type_style(role, '#f06595', star).
 type_style(kind, '#ced4da', dot).
 type_style(runtime, '#495057', square).
 type_style(text, '#868e96', text).
+type_style(npm_script, '#c0eb75', box).
+type_style(identity_mode, '#f783ac', diamond).
+type_style(capability, '#ffa8a8', ellipse).
+type_style(practice, '#ced4da', ellipse).
 type_style(url, '#495057', text).
 type_style(value, '#adb5bd', box).
 type_style(concept, '#5c7cfa', dot).

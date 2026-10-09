@@ -20,6 +20,25 @@ noun(email_role, role).
 noun(email_provider, provider).
 noun(google_workspace, 'Google Workspace').
 noun(system, 'System').
+noun(knowledge_explorer, 'Liquidity House Knowledge Explorer').
+noun(readme_overview, 'Overview').
+noun(readme_components, 'Components').
+noun(readme_running, 'Running it').
+noun(readme_access, 'Who sees what').
+noun(readme_knowledge, 'Knowledge files').
+noun(readme_rest, 'REST API').
+noun(readme_mcp, 'MCP server for AI agents').
+noun(readme_explorer, 'Using the explorer').
+noun(readme_practices, 'Working on the knowledge base').
+noun(npm_script, 'package script').
+noun(npm_script_file, file).
+noun(runs_component, component).
+noun(described_as, description).
+noun(file_summary, summary).
+noun(engine_requirement, 'required version').
+noun(identity_setting, setting).
+noun(stated_and_derived, 'stated and derived').
+noun(per_user_settings, 'per-user settings').
 noun(ui, 'user interface').
 noun(knowledge, 'knowledge base').
 noun(tool, 'MCP tool').
@@ -27,7 +46,6 @@ noun(request, 'knowledge request').
 noun(text, description).
 noun(node, 'Node.js').
 noun(browser, 'the browser').
-noun(component, kind).
 noun(uses, part).
 noun(relies_on, dependency).
 noun(access, feature).
@@ -80,6 +98,15 @@ subject(role_feature, role).
 subject(access, endpoint).
 subject(answers_with, endpoint).
 subject(mcp_tool, 'MCP tool').
+subject(source_file, component).
+subject(npm_script_file, 'package script').
+
+% object(Relation, Phrase) — what a relation's object is called in rules, when its
+% noun/2 already names something else (operator/2's noun is the operator type).
+:- dynamic(object/2).
+object(operator, status).
+object(npm_script, command).
+object(component, kind).
 
 % verb(Relation, Phrase) — relations read as "Subject Verb Object".
 % Predicates without a verb are attributes: "the <noun> of Subject is Value".
@@ -101,7 +128,8 @@ verb(dashboard, 'is shown on').
 verb(deployed_on, 'is deployed on').
 verb(riskx, 'flows into').
 verb(data_source, 'pulls data from').
-verb(monitored_by, 'is monitored by').
+verb(monitors, monitors).
+verb(in_portfolio, 'is part of').
 verb(operator, 'has status').
 verb(slack_channel, contains).
 verb(requires, requires).
@@ -118,6 +146,11 @@ verb(mcp_tool, 'answers with').
 verb(served_by, 'is served by').
 verb(same_answer, 'gives the same answer as').
 verb(runs_on, 'runs on').
+verb(npm_script, runs).
+verb(npm_script_file, runs).
+verb(runs_component, starts).
+verb(registered_in, 'is registered for Claude Code in').
+verb(offers, offers).
 verb(depends_on, 'depends on').
 verb(needs_setup, needs).
 
@@ -185,3 +218,9 @@ connective(ready, 'has everything needed to work on').
 connective(still_needs, 'still needs to').
 connective(before_working_on, 'before working on').
 connective(unrecorded, 'no requirements are recorded for').
+connective(exists, exists).
+connective(definite, the).
+connective(organised_in, 'its knowledge is organised in these domains:').
+connective(access_rule, 'who may call each endpoint follows one rule:').
+connective(sample_data, 'illustrative sample data:').
+connective(none, '—').
