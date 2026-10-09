@@ -5,7 +5,7 @@
 % described_as) or generated from the repository by lib/kb-source.ts: kb_file
 % from kb/manifest.json; package_version, engine_requirement, npm_script and
 % npm_script_file from package.json; file_summary from each file's header
-% comment. The knowledge is executable: the web server authorises endpoints with
+% comment; clause_source from the explained rules as written. The knowledge is executable: the web server authorises endpoints with
 % can_call/2, the MCP server describes its tools with purpose/2, and README.md is
 % composed from all of it (readme.pl).
 

@@ -85,6 +85,29 @@ try {
   check("developer verifies own progress", v.status === 200 && v.body.who === "adam" && !v.body.missing.includes("onboarding"));
   check("only technical roles check someone else", (await dominic("/api/verify/riskx?who=adam")).status === 403);
 
+  // Derivations: the clause behind each derived fact and its slot values; Prolog only for technical roles.
+  const gA = await adam("/api/graph");
+  const derived = gA.body.triples.filter((t: { derived: boolean }) => t.derived);
+  check("every derived connection names its clause", derived.length > 0 && derived.every((t: { via: { rule: number } | null }) => t.via && t.via.rule > 0));
+  const rel = derived.find((t: { pred: string; s: string; o: string }) => t.pred === "relies_on" && t.s === "explorer_ui" && t.o === "knowledge_base");
+  const part = rel?.via.bindings.find((b: { name: string }) => b.name === "part")?.value;
+  check("a recursive derivation reaches the right part", rel?.via.rule === 2 && part === "web_server", JSON.stringify(rel?.via));
+  check("developer sees the clause as written, with its query", gA.body.rules.some((r: { source?: { file: string } }) => r.source?.file === "kb/system.pl")
+    && typeof rel?.via.query === "string" && typeof rel?.via.instance === "string");
+  check("risk officer sees no Prolog", !g.body.rules.some((r: object) => "source" in r || "pattern" in r)
+    && !g.body.triples.some((t: { via: object | null }) => t.via && ("query" in t.via || "instance" in t.via)));
+
+  // Audit and optimiser: technical roles only, constraints checked against the audit.
+  check("risk officer cannot audit", (await dominic("/api/audit")).status === 403);
+  const au = await adam("/api/audit");
+  check("audit measures stated, derived and rules", au.status === 200 && au.body.totals.now > 0 && au.body.totals.without_rules > au.body.totals.now, JSON.stringify(au.body.totals));
+  check("audit lists candidates with a saving and clauses", Array.isArray(au.body.candidates) && au.body.candidates.every((c: { saving: number; covers: unknown[] }) => typeof c.saving === "number" && c.covers.length > 0));
+  const pl = await adam("/api/plan", { method: "POST", body: JSON.stringify({ alternatives: 2 }) });
+  check("optimiser returns a best plan", pl.status === 200 && pl.body.plans.length >= 1 && pl.body.plans[0].saving >= 0, JSON.stringify(pl.body));
+  const kept = await adam("/api/plan", { method: "POST", body: JSON.stringify({ keep: au.body.candidates.map((c: { relation: string }) => c.relation), alternatives: 1 }) });
+  check("keeping every relation leaves nothing to apply", kept.status === 200 && kept.body.plans[0].candidates.length === 0, JSON.stringify(kept.body));
+  check("unknown names in constraints are refused", (await adam("/api/plan", { method: "POST", body: JSON.stringify({ keep: ["x). evil"] }) })).status === 400);
+
   check("context outside the role scope", (await dominic("/api/context/adam")).status === 404);
   const ctx = await adam("/api/context/injectx?depth=1&max=5");
   check("context is capped", ctx.status === 200 && ctx.body.triples.length === 5 && ctx.body.truncated === true);

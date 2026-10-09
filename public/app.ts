@@ -2,9 +2,11 @@
 // every derived fact was reached. The server reasons over the knowledge base; this page never sees it.
 
 import { DataSet, Network, type Edge, type Node as VisNode, type Options } from "vis-network/standalone";
-import type { Explanation, GoalExplanation, Graph, Line, Rule, Session, SessionInfo, Triple, TypeStyle, Via } from "../lib/kb-types.ts";
+import type {
+  Audit, Candidate, Explanation, GoalExplanation, Graph, Line, Plan, Rule, Session, SessionInfo, Triple, TypeStyle, Via,
+} from "../lib/kb-types.ts";
 
-type View = "mindmap" | "hierarchy" | "table" | "console";
+type View = "mindmap" | "hierarchy" | "table" | "console" | "audit";
 type Direction = "LR" | "UD" | "RL" | "DU";
 
 interface Settings {
@@ -35,6 +37,7 @@ const VIEWS: { id: View; label: string; feature?: string }[] = [
   { id: "hierarchy", label: "Hierarchy" },
   { id: "table", label: "Table", feature: "table" },
   { id: "console", label: "Query", feature: "console" },
+  { id: "audit", label: "Audit", feature: "technical" },
 ];
 const SHAPES = ["dot", "box", "ellipse", "diamond", "hexagon", "triangle", "star", "square", "database", "text"];
 const LABEL_INSIDE = new Set(["box", "ellipse", "database", "circle"]);
@@ -758,6 +761,188 @@ function overview(): HTMLElement {
   return wrap;
 }
 
+// --- Audit: stated vs derived, in symbols, and what could be said more briefly ---
+type AuditTab = "facts" | "relations" | "compression";
+let audit: Audit | null = null;
+let auditFor = "";
+let auditTab: AuditTab = store.get<AuditTab>("kbx:auditTab") ?? "compression";
+let nearMisses = false;
+let lastPlans: Plan[] | null = null;
+
+async function renderAudit() {
+  const view = $("audit-view");
+  const key = `${info.version}|${userId}`;
+  if (auditFor !== key) {
+    view.replaceChildren(el("p", { className: "muted" }, "Measuring the knowledge base…"));
+    try {
+      audit = await api<Audit>("/api/audit");
+      auditFor = key;
+      lastPlans = null;
+    } catch (e) {
+      view.replaceChildren(el("p", { className: "muted" }, (e as Error).message));
+      return;
+    }
+  }
+  const a = audit!;
+  const t = a.totals;
+  const saved = t.without_rules - t.now;
+  const tile = (label: string, value: string, note: string, title = "") =>
+    el("div", { className: "tile", title }, el("div", { className: "tile-label" }, label), el("div", { className: "tile-value" }, value), el("div", { className: "muted" }, note));
+  const tabs = el("div", { className: "segmented" }, ...([["facts", "Stated vs derived"], ["relations", "Relations"], ["compression", "Compression"]] as [AuditTab, string][])
+    .map(([id, label]) => {
+      const b = el("button", { type: "button", textContent: label });
+      b.setAttribute("aria-selected", String(auditTab === id));
+      b.onclick = () => { auditTab = id; store.set("kbx:auditTab", id); renderAudit(); };
+      return b;
+    }));
+  const body = auditTab === "facts" ? auditFacts() : auditTab === "relations" ? auditRelations(a) : auditCompression(a);
+  view.replaceChildren(
+    el("div", { className: "audit-head" }, el("h2", {}, "Knowledge audit"),
+      el("p", { className: "muted" }, "Description length in symbols: a name, number or variable is one symbol; a link or sentence one per word-like segment. Generated facts are free; derived facts are what the rules save.")),
+    el("div", { className: "tiles" },
+      tile("Stated", `${t.stated.symbols}`, `${t.stated.facts} facts, written by hand`),
+      tile("Rules", `${t.rules.symbols}`, `${t.rules.clauses} clauses`),
+      tile("Lexicon", `${t.lexicon.symbols}`, `${t.lexicon.entries} words and primitives`),
+      tile("Derived", `${t.derived.symbols}`, `${t.derived.facts} facts, if they were stated`),
+      tile("Generated", `${t.generated.symbols}`, `${t.generated.facts} facts, free`, "Recorded by the repository (manifest, package.json, file headers) and generated, so they cost nothing to write"),
+      tile("Description length", `${t.now}`, `${t.without_rules} without rules: rules save ${saved} (${Math.round((saved / t.without_rules) * 100)}%)`, "Stated + rules + lexicon, against stated + derived + lexicon")),
+    tabs, body);
+}
+
+/** Every fact in scope, stated beside derived, grouped by relation. */
+function auditFacts(): HTMLElement {
+  const filter = el("input", { type: "search", placeholder: "Filter facts…", className: "audit-filter" });
+  const columns = el("div", { className: "fact-columns" });
+  const draw = () => {
+    const q = filter.value.toLowerCase();
+    const rows = scopedTriples().filter((t) => !q || [t.s, t.p, t.o].some((v) => String(v).toLowerCase().includes(q)));
+    const column = (derived: boolean) => {
+      const mine = rows.filter((t) => t.derived === derived);
+      const groups = new Map<string, Triple[]>();
+      for (const t of mine) (groups.get(t.p) ?? groups.set(t.p, []).get(t.p)!).push(t);
+      return el("div", { className: "fact-column" },
+        el("h3", { className: "ex-section" }, derived ? "Derived " : "Stated ", kindBadge(derived), ` ${mine.length}`),
+        ...[...groups].sort((x, y) => y[1].length - x[1].length).map(([p, ts]) =>
+          el("details", { className: "fact-group", open: groups.size <= 6 }, el("summary", {}, `${p} `, el("span", { className: "muted" }, String(ts.length))),
+            el("ul", { className: "fact-list" }, ...ts.map((t) => {
+              const li = el("li", { title: t.derived ? viaText(t.pred, t.via) : STATED_HINT },
+                `${t.s} → ${typeof t.o === "number" ? t.o.toLocaleString() : shortLabel(String(t.o))}`);
+              if (t.via) li.append(el("span", { className: "rule-chip" }, `rule ${t.via.rule}`));
+              if (t.ways > 1) li.append(el("span", { className: "muted" }, ` ×${t.ways}`));
+              li.onclick = () => showTriple(t);
+              return li;
+            })))));
+    };
+    columns.replaceChildren(column(false), column(true));
+  };
+  filter.addEventListener("input", draw);
+  draw();
+  return el("div", {}, filter, columns);
+}
+
+/** Each relation's facts and symbols; for derived ones, what each clause derives and whether the rule pays. */
+function auditRelations(a: Audit): HTMLElement {
+  const order = { stated: 0, generated: 1, derived: 2 };
+  const rows = [...a.relations].sort((x, y) => order[x.kind] - order[y.kind] || y.symbols - x.symbols);
+  const head = el("tr", {}, ...["Relation", "Domain", "Kind", "Facts", "Symbols", "Rule symbols", "Saves", "Clauses"].map((h) => el("th", {}, h)));
+  return el("div", { className: "table-wrap" }, el("table", {}, el("thead", {}, head), el("tbody", {}, ...rows.map((r) => {
+    const clauses = (r.clauses ?? []).map((c) => el("span", { className: c.facts ? "clause-stat" : "clause-stat dead", title: `${c.facts} facts, ${c.only} only by this clause` },
+      `#${c.clause}: ${c.facts} facts · ${c.symbols} sym`));
+    const saves = r.saving ?? null;
+    return el("tr", {},
+      el("td", {}, r.label, el("span", { className: "muted" }, ` ${r.id}/${r.arity}`)),
+      el("td", {}, domainLabel(r.domain)),
+      el("td", {}, r.kind === "derived" ? kindBadge(true) : r.kind === "generated" ? el("span", { className: "kind-badge stated", textContent: "generated" }) : kindBadge(false)),
+      el("td", { className: "num" }, String(r.facts)),
+      el("td", { className: "num" }, String(r.symbols)),
+      el("td", { className: "num" }, r.rule_symbols === undefined ? "" : String(r.rule_symbols)),
+      el("td", { className: `num ${saves !== null && saves < 0 ? "costs" : ""}`, title: saves !== null && saves < 0 ? "Costs more symbols than its facts would: kept for what it explains and for facts to come" : "" },
+        saves === null ? "" : String(saves)),
+      el("td", {}, ...clauses));
+  }))));
+}
+
+/** Compression candidates, and the optimiser that picks the best set under constraints. */
+function auditCompression(a: Audit): HTMLElement {
+  const kinds = new Map(a.kinds.map((k) => [k.id, k]));
+  const shown = a.candidates.filter((c) => nearMisses || c.saving > 0);
+  const near = el("input", { type: "checkbox", checked: nearMisses });
+  near.onchange = () => { nearMisses = near.checked; renderAudit(); };
+  const cards = shown.map((c) => candidateCard(c, kinds.get(c.kind)));
+  return el("div", { className: "compression" },
+    optimiserForm(a),
+    el("label", { className: "inline-check" }, near, " Show near misses (candidates that save nothing yet)"),
+    ...(cards.length ? cards : [el("p", { className: "muted" }, "No candidate saves symbols: nothing here is said twice in a way these templates can see.")]));
+}
+
+function candidateCard(c: Candidate, kind?: { label: string; description: string }): HTMLElement {
+  const covered = c.covers.reduce((n, x) => n + x.symbols, 0);
+  const card = el("div", { className: `card candidate ${c.saving > 0 ? "" : "near"}`, id: `cand-${c.id}` },
+    el("div", { className: "cand-head" },
+      el("span", { className: "kind-chip", title: kind?.description ?? "" }, kind?.label ?? c.kind),
+      el("strong", {}, c.relation),
+      el("span", { className: c.saving > 0 ? "saves" : "muted" }, c.saving > 0 ? `saves ${c.saving} symbols` : c.saving === 0 ? "saves nothing" : `costs ${-c.saving}`)),
+    el("div", { className: "muted" }, `${kind?.description ?? ""}. Replaces ${c.covers.length} item${c.covers.length === 1 ? "" : "s"} (${covered} symbols) and adds ${c.cost}.`));
+  for (const clause of c.clauses) card.append(prolog(clause));
+  if (c.exceptions.length) card.append(el("div", {}, el("span", { className: "via-label" }, "Exceptions "), c.exceptions.join(", ")));
+  if (c.alternatives.length) card.append(el("div", { className: "muted" }, `Would also hold reading ${c.alternatives.join(", ")}.`));
+  card.append(el("details", {}, el("summary", {}, "What it replaces"),
+    el("ul", { className: "fact-list" }, ...c.covers.map((x) => el("li", {}, `${x.item} `, el("span", { className: "muted" }, `${x.symbols}`))))));
+  return card;
+}
+
+function optimiserForm(a: Audit): HTMLElement {
+  const relations = [...new Set(a.candidates.filter((c) => c.saving > 0).map((c) => c.relation))];
+  const kinds = [...new Set(a.candidates.map((c) => c.kind))];
+  const keep = relations.map((r) => [r, el("input", { type: "checkbox" })] as const);
+  const allow = kinds.map((k) => [k, el("input", { type: "checkbox", checked: true })] as const);
+  const maxRules = el("input", { type: "number", min: "0", max: "100", placeholder: "any", className: "small-input" });
+  const exceptions = el("input", { type: "checkbox", checked: true });
+  const alternatives = el("select", {}, ...[1, 2, 3, 4, 5].map((n) => el("option", { value: String(n), textContent: String(n), selected: n === 3 })));
+  const results = el("div", { className: "plans" });
+  const label = (k: string) => a.kinds.find((x) => x.id === k)?.label ?? k;
+  const drawPlans = (ps: Plan[]) => results.replaceChildren(...(ps.length ? ps.map((p, i) =>
+    el("div", { className: "card plan" },
+      el("div", { className: "cand-head" }, el("strong", {}, i === 0 ? "Best plan" : `Alternative ${i}`),
+        el("span", { className: p.saving > 0 ? "saves" : "muted" }, p.saving > 0 ? `saves ${p.saving} symbols` : "saves nothing")),
+      p.candidates.length ? el("div", { className: "plan-items" }, ...p.candidates.map((id) => {
+        const c = a.candidates.find((x) => x.id === id)!;
+        const b = el("button", { type: "button", className: "link", textContent: `${label(c.kind)}: ${c.relation} (${c.saving})` });
+        b.onclick = () => { if (!nearMisses && c.saving <= 0) { nearMisses = true; renderAudit(); } document.getElementById(`cand-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); };
+        return b;
+      })) : el("div", { className: "muted" }, "Keep the knowledge base as it is.")))
+    : [el("p", { className: "muted" }, "No plan meets these constraints.")]));
+  if (lastPlans) drawPlans(lastPlans);
+  const run = el("button", { type: "button", className: "primary", textContent: "Find best plans" });
+  run.onclick = async () => {
+    results.replaceChildren(el("p", { className: "muted" }, "Optimising…"));
+    try {
+      const { plans } = await api<{ plans: Plan[] }>("/api/plan", { method: "POST", body: JSON.stringify({
+        keep: keep.filter(([, i]) => i.checked).map(([r]) => r),
+        kindsOff: allow.filter(([, i]) => !i.checked).map(([k]) => k),
+        maxRules: maxRules.value === "" ? undefined : Number(maxRules.value),
+        exceptions: exceptions.checked,
+        alternatives: Number(alternatives.value),
+      }) });
+      lastPlans = plans;
+      drawPlans(plans);
+    } catch (e) {
+      results.replaceChildren(el("p", { className: "muted" }, (e as Error).message));
+    }
+  };
+  return el("details", { className: "card optimiser", open: true },
+    el("summary", {}, "Choose the best set (optimiser)"),
+    el("p", { className: "muted" }, "Candidates are scored one by one; the optimiser (clingo) picks the set that saves most together, without counting shared facts twice or closing a cycle, under your constraints."),
+    el("div", { className: "opt-grid" },
+      el("div", {}, el("div", { className: "via-label" }, "Keep stated"), ...(keep.length ? keep.map(([r, i]) => el("label", {}, i, ` ${r}`)) : [el("span", { className: "muted" }, "—")])),
+      el("div", {}, el("div", { className: "via-label" }, "Templates"), ...allow.map(([k, i]) => el("label", {}, i, ` ${label(k)}`))),
+      el("div", {}, el("div", { className: "via-label" }, "Limits"),
+        el("label", {}, "At most ", maxRules, " changes"),
+        el("label", {}, exceptions, " Allow exceptions"),
+        el("label", {}, "Plans ", alternatives))),
+    run, results);
+}
+
 // --- Console ---
 async function runConsole() {
   const out = $("console-output");
@@ -794,10 +979,12 @@ function update(full = true) {
   $("graph").hidden = !graphView;
   $("table-view").hidden = view !== "table";
   $("console-view").hidden = view !== "console";
+  $("audit-view").hidden = view !== "audit";
   $("stage-empty").hidden = true;
   if (graphView) renderGraph();
   else { network?.destroy(); network = null; }
   if (view === "table") renderTable();
+  if (view === "audit") renderAudit();
   if (full) renderExplain();
 }
 

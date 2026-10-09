@@ -12,32 +12,36 @@ Its knowledge is organised in these domains: Onboarding, RiskX platform, Risk an
 graph LR
   n0["@modelcontextprotocol/sdk (library)"]
   n1["api_check (script)"]
-  n2["explorer_ui (user interface)"]
-  n3["kb_service (module)"]
-  n4["kb_source (module)"]
-  n5["knowledge_base (knowledge base)"]
-  n6["mcp_check (script)"]
-  n7["mcp_server (server)"]
-  n8["prolog_engine (module)"]
-  n9["query_sandbox (module)"]
-  n10["readme_builder (script)"]
-  n11["trealla (library)"]
-  n12["vis-network (library)"]
-  n13["web_server (server)"]
-  n2 --> n13
-  n2 --> n12
-  n13 --> n3
-  n13 --> n9
-  n7 --> n3
-  n7 --> n0
-  n3 --> n4
-  n3 --> n8
+  n2["clingo-wasm (library)"]
+  n3["explorer_ui (user interface)"]
+  n4["kb_service (module)"]
+  n5["kb_source (module)"]
+  n6["knowledge_base (knowledge base)"]
+  n7["mcp_check (script)"]
+  n8["mcp_server (server)"]
+  n9["optimiser (module)"]
+  n10["prolog_engine (module)"]
+  n11["query_sandbox (module)"]
+  n12["readme_builder (script)"]
+  n13["trealla (library)"]
+  n14["vis-network (library)"]
+  n15["web_server (server)"]
+  n3 --> n15
+  n3 --> n14
+  n15 --> n4
+  n15 --> n11
+  n15 --> n9
+  n8 --> n4
+  n8 --> n0
   n4 --> n5
-  n8 --> n11
-  n9 --> n11
-  n10 --> n3
-  n1 --> n13
-  n6 --> n7
+  n4 --> n10
+  n5 --> n6
+  n10 --> n13
+  n11 --> n13
+  n9 --> n2
+  n12 --> n4
+  n1 --> n15
+  n7 --> n8
 ```
 
 ## Components
@@ -52,6 +56,7 @@ graph LR
 | `prolog_engine` | module | Node.js | `lib/prolog.ts` | Trealla Prolog (WASM) engine wrapper: consults the KB program and runs api/1 requests |
 | `query_sandbox` | module | Node.js | `lib/sandbox.ts` and `lib/query-worker.ts` | Free-form queries (the explorer's Query view) run in a throwaway worker with a time limit, so a runaway goal or halt/0 cannot block or kill the shared engine |
 | `kb_types` | module | Node.js | `lib/kb-types.ts` | Shapes of the JSON the knowledge base answers with (kb/api.pl) |
+| `optimiser` | module | Node.js | `lib/optimiser.ts` and `kb/plan.lp` | Chooses which compression candidates to apply: kb/plan.lp, solved by clingo, finds the set that saves the most symbols within the asker's constraints, then the next best ones |
 | `knowledge_base` | knowledge base | — | — | Hold every fact and rule, the vocabulary explanations are built from, and the requests the servers ask |
 | `api_check` | script | Node.js | `scripts/api-check.ts` | End-to-end check of the REST endpoints and their role scoping |
 | `mcp_check` | script | Node.js | `scripts/mcp-check.ts` | Smoke test for the MCP server over real stdio: lists the tools, then walks the discover → focus → verify → explain sequence an agent would follow |
@@ -108,6 +113,7 @@ The knowledge base exists to hold every fact and rule, the vocabulary explanatio
 | `kb/schema.pl` | What is shown, where it belongs, how it looks and who sees it |
 | `kb/explain.pl` | Syllog-style meta-interpreter and a sentence composer |
 | `kb/api.pl` | The knowledge-graph bridge and the JSON requests the web and MCP servers ask |
+| `kb/audit.pl` | What is stated, what is derived, and where the same knowledge could be said in fewer symbols |
 | `kb/readme.pl` | How README.md is composed from the knowledge base |
 
 ## REST API
@@ -125,6 +131,8 @@ The knowledge base exists to hold every fact and rule, the vocabulary explanatio
 | `POST /api/query` | `console` | — | — |
 | `GET /api/kb` | `technical` | — | — |
 | `GET /api/kb.pl` | `technical` | — | — |
+| `GET /api/audit` | `technical` | `audit` | — |
+| `POST /api/plan` | `technical` | — | — |
 
 ## MCP server for AI agents
 
@@ -146,6 +154,7 @@ Server 'mcp_server' is registered for Claude Code in .mcp.json.
 - **Entity types**: Show or hide each type of entity and change its colour and shape.
 - **Per-user settings**: Remember settings for each user and start newly visible domains ticked.
 - **Shareable state**: Keep the user, view, focus and depth in the URL, so a view can be shared.
+- **Knowledge audit**: Count what is stated, generated and derived in symbols, list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints.
 
 ## Working on the knowledge base
 
@@ -156,5 +165,7 @@ Server 'mcp_server' is registered for Claude Code in .mcp.json.
 - Describe each file in the first sentence of its header comment, of medium length; components, the README and the explorer read it from there.
 - Format text into a fresh variable and then unify (Url = Url0), because in Trealla format(atom(Bound), …) inside a clause succeeds without checking.
 - Declare rules the explorer explains as dynamic, because clause/2 cannot read static predicates in Trealla.
+- Ask predicate_property/2 only under negation (\+ \+ to keep the answer), never catch errors from clause/2, and walk terms with separate clauses and functor/3 and arg/3 rather than if-then-else or =.., because in Trealla these leave or lose bindings when backtracking.
 - Change the knowledge (kb/*.pl, file headers, package.json) and run npm run readme, rather than editing README.md.
+- Look at the audit before adding facts: a candidate that saves symbols means knowledge is repeated, and a rule that saves none is kept for what it explains.
 - Illustrative sample data: `nordbet`, `spinhaus` and `vegaplay`.
