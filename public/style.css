@@ -202,6 +202,12 @@ td button.why { font-size: 11px; padding: 1px 6px; }
 .fact-list li:hover { color: var(--accent); }
 .rule-chip { font-size: 10.5px; border: 1px dashed var(--accent); color: var(--accent); border-radius: 999px; padding: 0 5px; margin-left: 6px; }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.relations { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.relation-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.relation-filters .audit-filter { margin: 0; flex: 1 1 220px; }
+.relation-filters label { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.relation-summary { margin: 0; font-size: 12px; }
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 td.costs { color: var(--warn); }
 .clause-stat { display: inline-block; font-size: 11.5px; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; margin: 1px 3px 1px 0; }
 .clause-stat.dead { border-color: var(--warn); color: var(--warn); }

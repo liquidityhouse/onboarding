@@ -3,7 +3,7 @@
 
 import { DataSet, Network, type Edge, type Node as VisNode, type Options } from "vis-network/standalone";
 import type {
-  Audit, Candidate, Explanation, GoalExplanation, Graph, Line, Plan, Rule, Session, SessionInfo, Triple, TypeStyle, Via,
+  Audit, AuditRelation, Candidate, Explanation, GoalExplanation, Graph, Line, Plan, Rule, Session, SessionInfo, Triple, TypeStyle, Via,
 } from "../lib/kb-types.ts";
 
 type View = "mindmap" | "hierarchy" | "table" | "console" | "audit";
@@ -837,25 +837,109 @@ function auditFacts(): HTMLElement {
 }
 
 /** Each relation's facts and symbols; for derived ones, what each clause derives and whether the rule pays. */
+type RelationKind = AuditRelation["kind"];
+type RelationKey = "label" | "domain" | "kind" | "facts" | "symbols" | "rule_symbols" | "saving" | "clauses";
+interface RelationView { text: string; kinds: RelationKind[]; domain: string; costly: boolean; key: RelationKey; dir: 1 | -1 }
+const KIND_ORDER: Record<RelationKind, number> = { stated: 0, generated: 1, derived: 2 };
+const relationView: RelationView = {
+  text: "", kinds: ["stated", "generated", "derived"], domain: "", costly: false, key: "kind", dir: 1,
+  ...store.get<Partial<RelationView>>("kbx:auditRelations"),
+};
+
+/** A column's value for sorting; undefined (a stated relation has no rule) always sorts last. */
+function relationValue(r: AuditRelation, key: RelationKey): string | number | undefined {
+  switch (key) {
+    case "label": return r.label;
+    case "domain": return domainLabel(r.domain);
+    case "kind": return KIND_ORDER[r.kind];
+    case "clauses": return r.clauses?.length;
+    default: return r[key];
+  }
+}
+
 function auditRelations(a: Audit): HTMLElement {
-  const order = { stated: 0, generated: 1, derived: 2 };
-  const rows = [...a.relations].sort((x, y) => order[x.kind] - order[y.kind] || y.symbols - x.symbols);
-  const head = el("tr", {}, ...["Relation", "Domain", "Kind", "Facts", "Symbols", "Rule symbols", "Saves", "Clauses"].map((h) => el("th", {}, h)));
-  return el("div", { className: "table-wrap" }, el("table", {}, el("thead", {}, head), el("tbody", {}, ...rows.map((r) => {
-    const clauses = (r.clauses ?? []).map((c) => el("span", { className: c.facts ? "clause-stat" : "clause-stat dead", title: `${c.facts} facts, ${c.only} only by this clause` },
-      `#${c.clause}: ${c.facts} facts · ${c.symbols} sym`));
-    const saves = r.saving ?? null;
-    return el("tr", {},
-      el("td", {}, r.label, el("span", { className: "muted" }, ` ${r.id}/${r.arity}`)),
-      el("td", {}, domainLabel(r.domain)),
-      el("td", {}, r.kind === "derived" ? kindBadge(true) : r.kind === "generated" ? el("span", { className: "kind-badge stated", textContent: "generated" }) : kindBadge(false)),
-      el("td", { className: "num" }, String(r.facts)),
-      el("td", { className: "num" }, String(r.symbols)),
-      el("td", { className: "num" }, r.rule_symbols === undefined ? "" : String(r.rule_symbols)),
-      el("td", { className: `num ${saves !== null && saves < 0 ? "costs" : ""}`, title: saves !== null && saves < 0 ? "Costs more symbols than its facts would: kept for what it explains and for facts to come" : "" },
-        saves === null ? "" : String(saves)),
-      el("td", {}, ...clauses));
-  }))));
+  const v = relationView;
+  const remember = () => store.set("kbx:auditRelations", v);
+  const search = el("input", { type: "search", placeholder: "Filter relations…", className: "audit-filter", value: v.text });
+  search.addEventListener("input", () => { v.text = search.value; remember(); draw(); });
+
+  const kindToggles = (["stated", "generated", "derived"] as RelationKind[]).map((k) => {
+    const input = el("input", { type: "checkbox", checked: v.kinds.includes(k) });
+    input.onchange = () => { v.kinds = input.checked ? [...v.kinds, k] : v.kinds.filter((x) => x !== k); remember(); draw(); };
+    const n = a.relations.filter((r) => r.kind === k).length;
+    return el("label", {}, input, ` ${k} `, el("span", { className: "muted" }, String(n)));
+  });
+
+  const domains = [...new Set(a.relations.map((r) => r.domain))];
+  const domain = el("select", {}, el("option", { value: "", textContent: "All domains" }),
+    ...domains.map((d) => el("option", { value: d, textContent: domainLabel(d) })));
+  domain.value = domains.includes(v.domain) ? v.domain : "";
+  domain.onchange = () => { v.domain = domain.value; remember(); draw(); };
+
+  const costly = el("input", { type: "checkbox", checked: v.costly });
+  costly.onchange = () => { v.costly = costly.checked; remember(); draw(); };
+
+  const summary = el("p", { className: "muted relation-summary" });
+  const table = el("table", {});
+  const columns: [RelationKey, string, string][] = [
+    ["label", "Relation", ""], ["domain", "Domain", ""], ["kind", "Kind", "Stated by hand, generated from the repository, or derived by a rule"],
+    ["facts", "Facts", ""], ["symbols", "Symbols", "What its facts cost; for a derived relation, what they would cost if stated"],
+    ["rule_symbols", "Rule symbols", "What its rule clauses cost"], ["saving", "Saves", "Symbols its facts would cost minus its rule's symbols"],
+    ["clauses", "Clauses", "What each clause derives"],
+  ];
+
+  function draw() {
+    const q = v.text.trim().toLowerCase();
+    const rows = a.relations
+      .filter((r) => v.kinds.includes(r.kind))
+      .filter((r) => !v.domain || r.domain === v.domain)
+      .filter((r) => !v.costly || (r.saving ?? 0) < 0)
+      .filter((r) => !q || [r.id, r.label, domainLabel(r.domain)].some((x) => x.toLowerCase().includes(q)))
+      .sort((x, y) => {
+        const p = relationValue(x, v.key), r = relationValue(y, v.key);
+        if (p === undefined || r === undefined) return p === r ? 0 : p === undefined ? 1 : -1;
+        const c = typeof p === "number" && typeof r === "number" ? p - r : String(p).localeCompare(String(r));
+        return c * v.dir || y.symbols - x.symbols;
+      });
+    const total = rows.reduce((n, r) => n + r.symbols, 0);
+    const asIf = rows.some((r) => r.kind === "derived") ? ", derived facts counted as if stated" : "";
+    summary.textContent = `${rows.length} of ${a.relations.length} relations · ${total} symbols${asIf}`;
+    const head = el("tr", {}, ...columns.map(([key, label, title]) => {
+      const th = el("th", { title, className: "sortable" }, label + (v.key === key ? (v.dir === 1 ? " ▲" : " ▼") : ""));
+      th.onclick = () => {
+        // Numbers start largest first; names and kinds start in order.
+        v.dir = v.key === key ? (-v.dir as 1 | -1) : ["label", "domain", "kind"].includes(key) ? 1 : -1;
+        v.key = key;
+        remember();
+        draw();
+      };
+      return th;
+    }));
+    table.replaceChildren(el("thead", {}, head), el("tbody", {}, ...rows.map(relationRow)));
+  }
+  draw();
+
+  return el("div", { className: "relations" },
+    el("div", { className: "relation-filters" }, search, ...kindToggles, domain,
+      el("label", { title: "Derived relations whose facts would cost fewer symbols than their rule" }, costly, " Only rules that cost more than they save")),
+    summary,
+    el("div", { className: "table-wrap" }, table));
+}
+
+function relationRow(r: AuditRelation): HTMLElement {
+  const clauses = (r.clauses ?? []).map((c) => el("span", { className: c.facts ? "clause-stat" : "clause-stat dead", title: `${c.facts} facts, ${c.only} only by this clause` },
+    `#${c.clause}: ${c.facts} facts · ${c.symbols} sym`));
+  const saves = r.saving ?? null;
+  return el("tr", {},
+    el("td", {}, r.label, el("span", { className: "muted" }, ` ${r.id}/${r.arity}`)),
+    el("td", {}, domainLabel(r.domain)),
+    el("td", {}, r.kind === "derived" ? kindBadge(true) : r.kind === "generated" ? el("span", { className: "kind-badge stated", textContent: "generated" }) : kindBadge(false)),
+    el("td", { className: "num" }, String(r.facts)),
+    el("td", { className: "num" }, String(r.symbols)),
+    el("td", { className: "num" }, r.rule_symbols === undefined ? "" : String(r.rule_symbols)),
+    el("td", { className: `num ${saves !== null && saves < 0 ? "costs" : ""}`, title: saves !== null && saves < 0 ? "Costs more symbols than its facts would: kept for what it explains and for facts to come" : "" },
+      saves === null ? "" : String(saves)),
+    el("td", {}, ...clauses));
 }
 
 /** Compression candidates, and the optimiser that picks the best set under constraints. */
