@@ -364,35 +364,50 @@ clause_slots(Named, Ns) :-
     dedupe(Ns0, Ns).
 
 % --- A named clause as Prolog, slots as variables: relies_on(Component, Dependency) :- ... ---
+% Slots print as their variable names; the Out = Out0 pairs of practice fresh_format
+% read as X = X and are left out. (Trealla's variable_names option only takes a list
+% written out in the calling clause, so names are substituted in the text instead.)
 clause_pattern(Named, Text) :-
     unname(Named, (H :- B), [], Map),
-    map_names(Map, VNs),
-    Opts = [quoted(true), double_quotes(true), variable_names(VNs)],
-    write_term_to_atom(HT, H, Opts),
+    goal_pattern(H, Map, HT),
     (   B == true
     ->  format(atom(Text), "~w.", [HT])
-    ;   conj_list(B, Gs),
-        findall(GT, ( member(G, Gs), write_term_to_atom(GT, G, Opts) ), GTs),
+    ;   conj_list(B, Gs0),
+        findall(G, ( member(G, Gs0), \+ ( G = (L = R), L == R ) ), Gs),
+        findall(GT, ( member(G, Gs), goal_pattern(G, Map, GT) ), GTs),
         atomic_list_concat(GTs, ',\n    ', BT),
         format(atom(Text), "~w :-~n    ~w.", [HT, BT]) ).
 
+goal_pattern(G, Map, T) :-
+    write_term_to_atom(T0, G, [quoted(true), double_quotes(true)]),
+    findall(VN, member(_-VN, Map), VNs),
+    unquote_all(['_'|VNs], T0, T).
+
+unquote_all([], T, T).
+unquote_all([VN|VNs], T0, T) :-
+    format(atom(Q), "'~w'", [VN]), replace_all(T0, Q, VN, T1),
+    unquote_all(VNs, T1, T).
+
+replace_all(A, From, To, R) :-
+    (   sub_atom(A, B, L, After, From)
+    ->  sub_atom(A, 0, B, _, Pre), S is B + L, sub_atom(A, S, After, 0, Post),
+        replace_all(Post, From, To, R1), atomic_list_concat([Pre, To, R1], R)
+    ;   R = A ).
+
 unname(T, V, M0, M) :- nonvar(T), T = n(N, C), !,
-    (   N == it -> M = [it-('_' = V)|M0]
-    ;   member(N1-(_ = V0), M0), N1 == N -> V = V0, M = M0
-    ;   var_name(N, C, M0, VN), M = [N-(VN = V)|M0] ).
+    (   N == it -> V = '_', M = M0
+    ;   member(N1-V0, M0), N1 == N -> V = V0, M = M0
+    ;   var_name(N, C, M0, V), M = [N-V|M0] ).
 unname(T, T, M, M) :- ( atomic(T) ; string(T) ), !.
 unname(T, U, M0, M) :- T =.. [F|As], unname_args(As, Us, M0, M), U =.. [F|Us].
 unname_args([], [], M, M).
 unname_args([A|As], [U|Us], M0, M) :- unname(A, U, M0, M1), unname_args(As, Us, M1, M).
 
-map_names([], []).
-map_names([_-VN|M], [VN|VNs]) :- map_names(M, VNs).
-
 % "soft credit limit" -> SoftCreditLimit; a name that starts with a digit uses its concept.
 var_name(N, C, M, VN) :-
     camel(N, VN0),
     (   atom_codes(VN0, [D|_]), D >= 0'0, D =< 0'9, C \== none -> camel(C, VN1) ; VN1 = VN0 ),
-    (   member(_-(VN1 = _), M) -> atom_concat(VN1, '2', VN) ; VN = VN1 ).
+    (   member(_-VN1, M) -> atom_concat(VN1, '2', VN) ; VN = VN1 ).
 
 camel(A, C) :- atom_codes(A, Cs), camel_codes(Cs, true, Os), atom_codes(C, Os).
 camel_codes([], _, []).
