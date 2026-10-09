@@ -88,3 +88,32 @@ export interface SessionInfo {
   /** …and just the fact that something is missing, for everyone else. */
   incomplete?: boolean;
 }
+
+/** GET /api/audit: what is stated, generated and derived, in symbols, and what could be said more briefly. */
+export interface AuditRelation {
+  id: string; arity: number; domain: string; label: string; kind: "stated" | "generated" | "derived";
+  facts: number; symbols: number;
+  /** derived only */
+  clauses?: { clause: number; symbols: number; facts: number; only: number }[];
+  rule_symbols?: number; saving?: number; reads?: string[];
+}
+export interface Candidate {
+  id: string; kind: string; relation: string; body: string[];
+  saving: number; cost: number;
+  covers: { item: string; symbols: number }[];
+  clauses: string[]; exceptions: string[]; alternatives: string[];
+}
+export interface Audit extends Problem {
+  totals: {
+    stated: { facts: number; symbols: number }; generated: { facts: number; symbols: number };
+    derived: { facts: number; symbols: number }; rules: { clauses: number; symbols: number };
+    lexicon: { entries: number; symbols: number }; now: number; without_rules: number;
+  };
+  relations: AuditRelation[];
+  kinds: { id: string; label: string; description: string }[];
+  candidates: Candidate[];
+  reads: { relation: string; reads: string }[];
+}
+/** POST /api/plan: constraints for choosing candidates. */
+export interface PlanRequest { keep?: string[]; kindsOff?: string[]; maxRules?: number; exceptions?: boolean; alternatives?: number }
+export interface Plan { candidates: string[]; saving: number; cost: number }
