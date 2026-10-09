@@ -226,6 +226,8 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 /* Prolog for technical roles: the rule as written, its values, the query */
 details.prolog { margin-top: 8px; }
 details.prolog > summary { font-size: 12px; }
+.facts details.prolog { margin: 0; }
+.facts details.prolog > summary { font-size: inherit; color: inherit; margin: 0; }
 pre.code { font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); padding: 8px 10px; border-radius: 6px; margin: 4px 0; white-space: pre; overflow-x: auto; tab-size: 4; }
 pre.code.query-out { min-height: 1.4em; }
 .pl-comment { color: var(--pl-comment); font-style: italic; }

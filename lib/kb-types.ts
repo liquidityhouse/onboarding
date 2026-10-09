@@ -14,10 +14,12 @@ export interface Domain { id: string; label: string }
 export interface Predicate { id: string; arity: number; domain: string; label: string; derived: boolean }
 export interface TypeStyle { id: string; label: string; color: string; shape: string }
 /** One clause of a rule: its words, its slots (variables, named after concepts) and, for technical roles, the clause. */
+/** Where a clause is written; a generated fact names the module that generates it instead of a line. */
+export interface Source { file: string; line?: number; text: string; generated?: boolean }
 export interface Rule {
   predicate: string; clause: number; text: string; slots: string[];
   /** Technical roles: the clause as written in its file… */
-  source?: { file: string; line: number; text: string };
+  source?: Source;
   /** …or reprinted from the loaded clause when the file has none. */
   pattern?: string;
 }
@@ -44,7 +46,9 @@ export interface Graph extends Problem {
 
 export interface Line { depth: number; kind: string; text: string }
 export interface Conclusion { predicate: string; severity: string; goal: string; text: string; via: Via | null; lines: Line[] }
-export interface Explanation extends Problem { id: string; type: string; phrase: string; facts: string[]; conclusions: Conclusion[] }
+/** A stated fact in words; technical roles also get where it is written. */
+export interface StatedFact { text: string; source?: Source }
+export interface Explanation extends Problem { id: string; type: string; phrase: string; facts: StatedFact[]; conclusions: Conclusion[] }
 
 export interface Overview extends Problem {
   role: string;
@@ -70,6 +74,8 @@ export interface GoalExplanation extends Problem {
     /** false when the goal is a stated fact rather than inferred by a rule */
     derived: boolean;
     via?: Via | null;
+    /** Technical roles, stated answers: where the fact is written. */
+    source?: Source;
     explanation: string; lines?: Line[];
   }[];
   rule?: string;
