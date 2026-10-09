@@ -2,7 +2,7 @@
 // every derived fact was reached. The server reasons over the knowledge base; this page never sees it.
 
 import { DataSet, Network, type Edge, type Node as VisNode, type Options } from "vis-network/standalone";
-import type { Explanation, GoalExplanation, Graph, Line, Session, SessionInfo, Triple, TypeStyle } from "../lib/kb-types.ts";
+import type { Explanation, GoalExplanation, Graph, Line, Rule, Session, SessionInfo, Triple, TypeStyle, Via } from "../lib/kb-types.ts";
 
 type View = "mindmap" | "hierarchy" | "table" | "console";
 type Direction = "LR" | "UD" | "RL" | "DU";
@@ -82,8 +82,55 @@ const DERIVED_HINT = "Derived: inferred by a rule, not stated. Open it to see ho
 const STATED_HINT = "Stated: written in the knowledge base as a fact.";
 const LITERAL_TYPES = new Set(["value", "url", "text"]);
 
-/** The rule(s) behind a derived relation, in words: the "how". */
-const rulesFor = (pred: string) => snap.rules.filter((r) => r.predicate === pred).map((r) => r.text);
+/** The rule clauses behind a derived relation: the "how". */
+const rulesFor = (pred: string) => snap.rules.filter((r) => r.predicate === pred);
+const ruleOf = (pred: string, via: Via | null | undefined) =>
+  via ? snap.rules.find((r) => r.predicate === pred && r.clause === via.rule) : undefined;
+
+/** A rule's words with its slots (the variables it is written with) marked; with a via, each slot shows its value. */
+function slotted(rule: Rule, via?: Via | null): HTMLElement {
+  const out = el("span", { className: "slotted" });
+  const value = new Map(via?.bindings.map((b) => [b.name, b.value]));
+  const names = [...rule.slots].sort((a, b) => b.length - a.length);
+  if (!names.length) { out.append(rule.text); return out; }
+  const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const re = new RegExp(`(?<![\\p{L}\\p{N}_-])(${escaped.join("|")})(?![\\p{L}\\p{N}_-])`, "giu");
+  let at = 0;
+  for (const m of rule.text.matchAll(re)) {
+    out.append(rule.text.slice(at, m.index));
+    const name = names.find((n) => n.toLowerCase() === m[0].toLowerCase()) ?? m[0];
+    const v = value.get(name);
+    out.append(el("span", { className: v === undefined ? "slot" : "slot bound", title: v === undefined ? "A slot: any value that fits" : `${name} = ${v}` },
+      m[0], ...(v === undefined ? [] : [el("b", {}, v)])));
+    at = m.index + m[0].length;
+  }
+  out.append(rule.text.slice(at));
+  return out;
+}
+
+/** How a derived fact was made: the general rule (slots open), then what each slot stood for here. */
+function viaBlock(pred: string, via: Via | null | undefined, compact = false): HTMLElement {
+  const rule = ruleOf(pred, via);
+  if (!rule || !via) {
+    return el("div", { className: "via" }, ...rulesFor(pred).map((r) => el("div", { className: "rule-text" }, `How: ${r.text}`)));
+  }
+  const count = rulesFor(pred).length;
+  const box = el("div", { className: "via" },
+    el("div", { className: "via-label" }, count > 1 ? `General rule ${rule.clause} of ${count}` : "General rule"),
+    el("div", { className: "rule-text" }, slotted(rule)));
+  if (!compact && rule.pattern) box.append(el("pre", { className: "raw pattern", textContent: rule.pattern }));
+  box.append(el("div", { className: "via-label" }, "Applied here with"),
+    el("div", { className: "bindings" }, ...via.bindings.map((b) =>
+      el("span", { className: "binding" }, el("span", { className: "slot" }, b.name), " = ", el("b", {}, b.value)))));
+  return box;
+}
+
+/** The same in one line of text, for plain tooltips. */
+function viaText(pred: string, via: Via | null | undefined): string {
+  const rule = ruleOf(pred, via);
+  if (!rule || !via) return rulesFor(pred).map((r) => `How: ${r.text}`).join("\n");
+  return `How: ${rule.text}\nHere: ${via.bindings.map((b) => `${b.name} = ${b.value}`).join(", ")}`;
+}
 
 function kindBadge(derived: boolean) {
   return el("span", {
@@ -121,12 +168,15 @@ const LINE_HINT: Record<string, string> = {
   warning: "A derived fact that needs attention",
 };
 const howWhyKey = () => el("p", { className: "how-why muted" }, "ƒ how (rule) · • why (facts used) · = calculation");
+/** Where a proof's lines start once its top rule is shown as a general rule above them. */
+const ruleShown = (lines: Line[], via: Via | null | undefined) => (via && lines[1]?.kind === "rule" ? 2 : 1);
 
-/** Tooltip for an edge: stated, or derived with its rule. */
+/** Tooltip for an edge: stated, or derived with the rule clause that made it and its slot values. */
 function edgeTitle(t: Triple): HTMLElement {
   const box = el("div", { className: "edge-tip" }, el("strong", {}, t.derived ? "Derived" : "Stated fact"), ` · ${t.p}`);
   if (t.derived) {
-    for (const r of rulesFor(t.pred)) box.append(el("div", {}, `How: ${r}`));
+    box.append(viaBlock(t.pred, t.via, true));
+    if (t.ways > 1) box.append(el("div", { className: "muted" }, `Also follows ${t.ways - 1} other way${t.ways > 2 ? "s" : ""}.`));
     box.append(el("div", { className: "muted" }, "Click the connection to see why."));
   }
   return box;
@@ -370,7 +420,7 @@ function renderTable() {
   };
   const body = el("tbody", {}, ...rows.map((t) => {
     const badge = kindBadge(t.derived);
-    if (t.derived) badge.title = [DERIVED_HINT, ...rulesFor(t.pred).map((r) => `How: ${r}`)].join("\n");
+    if (t.derived) badge.title = `${DERIVED_HINT}\n${viaText(t.pred, t.via)}`;
     const why = el("button", { type: "button", className: "why", textContent: t.derived ? "why?" : "fact", title: "Show this connection in the side panel" });
     why.onclick = (e) => { e.stopPropagation(); showTriple(t); };
     const tr = el("tr", { className: t.severity === "warning" ? "warning" : "" },
@@ -516,7 +566,7 @@ async function renderExplain() {
     const bySeverity = [...ex.conclusions].sort((a, b) => Number(b.severity === "warning") - Number(a.severity === "warning"));
     for (const c of bySeverity) {
       const details = el("details", { open: c.severity === "warning" || session().role === "risk_officer" },
-        el("summary", {}, "How and why"), howWhyKey(), linesList(c.lines, 1));
+        el("summary", {}, "How and why"), viaBlock(c.predicate, c.via), howWhyKey(), linesList(c.lines, ruleShown(c.lines, c.via)));
       if (c.proof) {
         details.append(el("details", {}, el("summary", {}, "Technical detail"), el("pre", { className: "raw", textContent: c.proof })));
       }
@@ -578,7 +628,8 @@ async function whyBody(t: Triple): Promise<HTMLElement> {
     if (!a) return el("p", { className: "muted" }, "This connection no longer holds.");
     const box = el("div", {}, el("div", { className: "headline", textContent: a.text }));
     if (!a.derived) { box.append(el("p", { className: "muted" }, STATED_HINT)); return box; }
-    box.append(howWhyKey(), linesList(a.lines ?? [], 1));
+    const via = a.via ?? t.via;
+    box.append(viaBlock(t.pred, via), howWhyKey(), linesList(a.lines ?? [], ruleShown(a.lines ?? [], via)));
     if (a.proof) box.append(el("details", {}, el("summary", {}, "Technical detail"), el("pre", { className: "raw", textContent: a.proof })));
     return box;
   } catch (e) {
@@ -600,11 +651,18 @@ async function showTriple(t: Triple) {
     actions.append(focusO);
   }
   const head = el("div", { className: "ex-head" }, el("h2", { textContent: t.p }), kindBadge(t.derived));
-  const how = t.derived ? rulesFor(t.pred) : [];
-  panel.replaceChildren(head, actions,
-    ...(how.length ? [el("h3", { className: "ex-section" }, "How"), ...how.map((r) => el("div", { className: "card rule" }, r))] : []),
-    el("h3", { className: "ex-section" }, t.derived ? "Why" : "Fact"),
+  const others = t.derived ? rulesFor(t.pred).filter((r) => r.clause !== t.via?.rule) : [];
+  const parts: HTMLElement[] = [head, actions];
+  if (t.derived && t.ways > 1) {
+    parts.push(el("p", { className: "muted" }, `This connection follows ${t.ways} ways; the first is explained.`));
+  }
+  parts.push(el("h3", { className: "ex-section" }, t.derived ? "How and why" : "Fact"),
     el("div", { className: `card ${t.derived ? "derived" : ""}` }, await whyBody(t)));
+  if (others.length) {
+    parts.push(el("details", { className: "other-rules" }, el("summary", {}, `Other rules for “${t.p}”`),
+      ...others.map((r) => el("div", { className: "card rule" }, slotted(r), r.pattern ? el("pre", { className: "raw pattern", textContent: r.pattern }) : ""))));
+  }
+  panel.replaceChildren(...parts);
 }
 
 function overview(): HTMLElement {
@@ -612,7 +670,8 @@ function overview(): HTMLElement {
   wrap.append(el("h2", { textContent: "How Liquidity House reasons" }),
     el("p", { className: "muted" }, "Select or search anything to see what is known about it and, step by step, how each figure was worked out. Explanations come from the same rules and data as the calculations, so they always match the result."));
   wrap.append(el("h3", { className: "ex-section", title: "Every derived fact comes from one of these rules" }, "Rules: how derived facts are made"),
-    ...snap.rules.map((r) => el("div", { className: "card" }, el("div", { textContent: r.text }), can("technical") ? el("div", { className: "muted" }, r.predicate) : "")));
+    ...snap.rules.map((r) => el("div", { className: "card" }, el("div", {}, slotted(r)),
+      r.pattern ? el("details", {}, el("summary", { className: "muted" }, `${r.predicate} · clause ${r.clause}`), el("pre", { className: "raw pattern", textContent: r.pattern })) : "")));
   const warnings = snap.triples.filter((t) => t.severity === "warning");
   if (warnings.length) {
     wrap.append(el("h3", { className: "ex-section" }, "Needs attention"),

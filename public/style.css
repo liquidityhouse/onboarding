@@ -160,6 +160,20 @@ pre.raw { white-space: pre-wrap; word-break: break-all; background: var(--surfac
 .edge-tip { max-width: 320px; white-space: normal; font: 12px/1.4 system-ui, sans-serif; }
 .edge-tip div { margin-top: 4px; }
 td button.why { font-size: 11px; padding: 1px 6px; }
+
+/* Derivations: the general rule with its slots open, then what each slot stood for */
+.via { margin: 6px 0; }
+.via-label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 6px; }
+.edge-tip .via-label { color: #6b7280; }
+.rule-text { color: var(--accent); margin-top: 2px; }
+.edge-tip .rule-text { color: #364fc7; }
+.slot { font-style: italic; border: 1px dashed currentColor; border-radius: 4px; padding: 0 3px; white-space: nowrap; }
+.slot.bound b { font-style: normal; margin-left: 4px; }
+.bindings { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; font-size: 12.5px; }
+.binding .slot { color: var(--accent); }
+.edge-tip .binding .slot { color: #364fc7; }
+pre.raw.pattern { word-break: normal; overflow-x: auto; white-space: pre; }
+.other-rules { margin-top: 8px; }
 details.card > summary { cursor: pointer; }
 
 @media (max-width: 1100px) {

@@ -13,11 +13,18 @@ export interface User { id: string; name: string; role: string }
 export interface Domain { id: string; label: string }
 export interface Predicate { id: string; arity: number; domain: string; label: string; derived: boolean }
 export interface TypeStyle { id: string; label: string; color: string; shape: string }
-export interface Rule { predicate: string; text: string }
+/** One clause of a rule: its words, its slots (variables, named after concepts) and, for technical roles, the clause. */
+export interface Rule { predicate: string; clause: number; text: string; slots: string[]; pattern?: string }
+export interface Binding { name: string; value: string }
+/** How a derived fact was made: which clause of its rule, and what each slot stood for. */
+export interface Via { rule: number; bindings: Binding[] }
 export interface Entity { id: string; type: string; label: string }
 export interface Triple {
   s: string | number; p: string; o: string | number;
   pred: string; domain: string; derived: boolean; severity: string;
+  /** How many proofs reach it; the first one is shown. */
+  ways: number;
+  via: Via | null;
 }
 /** Everything the explorer draws, already limited to the asker's role. */
 export interface Graph extends Problem {
@@ -26,7 +33,7 @@ export interface Graph extends Problem {
 }
 
 export interface Line { depth: number; kind: string; text: string }
-export interface Conclusion { predicate: string; severity: string; goal: string; text: string; lines: Line[]; proof?: string }
+export interface Conclusion { predicate: string; severity: string; goal: string; text: string; via: Via | null; lines: Line[]; proof?: string }
 export interface Explanation extends Problem { id: string; type: string; phrase: string; facts: string[]; conclusions: Conclusion[] }
 
 export interface Overview extends Problem {
@@ -52,6 +59,7 @@ export interface GoalExplanation extends Problem {
     bindings: Record<string, unknown>; text: string; severity: string;
     /** false when the goal is a stated fact rather than inferred by a rule */
     derived: boolean;
+    via?: Via | null;
     explanation: string; lines?: Line[]; proof?: string;
   }[];
   rule?: string;
