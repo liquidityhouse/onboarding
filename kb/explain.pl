@@ -14,7 +14,7 @@ solve((A, B), (PA, PB)) :- !,
     solve(B, PB).
 solve(G, builtin(G)) :- builtin_goal(G), !,
     call(G).
-% Static predicates can't be read with clause/2: their answers count as given facts.
+% Only dynamic predicates can be read with clause/2: answers of the others count as given facts.
 solve(G, rule(G, true, (G :- true), true)) :- opaque(G), !,
     call(G).
 solve(G, rule(G, Body, Named, Sub)) :-
@@ -25,9 +25,9 @@ solve(G, rule(G, Body, Named, Sub)) :-
     H = G,
     solve(Body, Sub).
 
-opaque(G) :-
-    catch(clause(G, _), error(permission_error(_, _, _), _), Opaque = true),
-    Opaque == true.
+% Asked with predicate_property/2, not by catching clause/2's permission error: in
+% Trealla, backtracking out of a catch/3 around clause/2 loses the caller's bindings.
+opaque(G) :- \+ predicate_property(G, dynamic).
 
 builtin_goal(_ is _).
 builtin_goal(_ = _).
@@ -318,10 +318,92 @@ line_kind(_, K, K).
 severity(G, S) :- line_kind(G, none, S).
 
 % Every rule clause of a derived predicate, in words.
-rule_description(P, T) :-
+rule_description(P, T) :- rule_clause(P, _, Named), rule_text(Named, T).
+
+% rule_clause(P, I, Named): the I-th clause of derived predicate P, variables named.
+rule_clause(P, I, Named) :-
     derived_predicate(P, A, _),
     functor(H, P, A),
-    catch(clause(H, B), _, fail),
-    copy_term((H :- B), Named),
-    name_clause(Named),
-    rule_text(Named, T).
+    predicate_property(H, dynamic),
+    findall((H :- B), clause(H, B), Cs),
+    nth1(I, Cs, C),
+    copy_term(C, Named),
+    name_clause(Named).
+
+% --- Which clause made a conclusion, and what its named variables stood for ---
+% derivation(Proof, I, Bindings): a rule proof used clause I, and each named
+% variable (its slot) took a value: Bindings = [Name-ValueText], head first.
+derivation(rule(G, Body, Named, _), I, Bs) :-
+    Body \== true,
+    Named = (NH :- _), functor(NH, P, _),
+    rule_clause(P, I, N2), N2 == Named, !,
+    findall(N-T, ( named_binding(Named, (G :- Body), b(N, C, V)), N \== it, binding_text(C, V, T) ), Bs0),
+    first_binding(Bs0, Bs).
+
+% Walk the named clause and its instance side by side; a slot n(N, C) meets its value.
+named_binding(NT, IT, B) :-
+    (   NT = n(N, C)
+    ->  nonvar(IT), B = b(N, C, IT)
+    ;   compound(NT), compound(IT), \+ string(NT),
+        NT =.. [F|NAs], IT =.. [F|IAs],
+        length(NAs, L), length(IAs, L),
+        nth1(K, NAs, NA), nth1(K, IAs, IA),
+        named_binding(NA, IA, B) ).
+
+binding_text(C, V, T) :- number(V), !, value_text(C, V, T).
+binding_text(_, V, V) :- atom(V), !.
+binding_text(_, V, T) :- format(atom(T), "~w", [V]).
+
+first_binding([], []).
+first_binding([N-T|Bs], [N-T|Us]) :-
+    findall(N1-T1, ( member(N1-T1, Bs), N1 \== N ), Rest),
+    first_binding(Rest, Us).
+
+% The slot names of a named clause, head first.
+clause_slots(Named, Ns) :-
+    findall(N, ( named_binding(Named, Named, b(N, _, _)), N \== it ), Ns0),
+    dedupe(Ns0, Ns).
+
+% --- A named clause as Prolog, slots as variables: relies_on(Component, Dependency) :- ... ---
+clause_pattern(Named, Text) :-
+    unname(Named, (H :- B), [], Map),
+    map_names(Map, VNs),
+    Opts = [quoted(true), double_quotes(true), variable_names(VNs)],
+    write_term_to_atom(HT, H, Opts),
+    (   B == true
+    ->  format(atom(Text), "~w.", [HT])
+    ;   conj_list(B, Gs),
+        findall(GT, ( member(G, Gs), write_term_to_atom(GT, G, Opts) ), GTs),
+        atomic_list_concat(GTs, ',\n    ', BT),
+        format(atom(Text), "~w :-~n    ~w.", [HT, BT]) ).
+
+unname(T, V, M0, M) :- nonvar(T), T = n(N, C), !,
+    (   N == it -> M = [it-('_' = V)|M0]
+    ;   member(N1-(_ = V0), M0), N1 == N -> V = V0, M = M0
+    ;   var_name(N, C, M0, VN), M = [N-(VN = V)|M0] ).
+unname(T, T, M, M) :- ( atomic(T) ; string(T) ), !.
+unname(T, U, M0, M) :- T =.. [F|As], unname_args(As, Us, M0, M), U =.. [F|Us].
+unname_args([], [], M, M).
+unname_args([A|As], [U|Us], M0, M) :- unname(A, U, M0, M1), unname_args(As, Us, M1, M).
+
+map_names([], []).
+map_names([_-VN|M], [VN|VNs]) :- map_names(M, VNs).
+
+% "soft credit limit" -> SoftCreditLimit; a name that starts with a digit uses its concept.
+var_name(N, C, M, VN) :-
+    camel(N, VN0),
+    (   atom_codes(VN0, [D|_]), D >= 0'0, D =< 0'9, C \== none -> camel(C, VN1) ; VN1 = VN0 ),
+    (   member(_-(VN1 = _), M) -> atom_concat(VN1, '2', VN) ; VN = VN1 ).
+
+camel(A, C) :- atom_codes(A, Cs), camel_codes(Cs, true, Os), atom_codes(C, Os).
+camel_codes([], _, []).
+camel_codes([X|Xs], Up, Os) :-
+    (   alnum(X)
+    ->  ( Up == true -> upper_code(X, Y) ; Y = X ), Os = [Y|Os1], camel_codes(Xs, false, Os1)
+    ;   camel_codes(Xs, true, Os) ).
+alnum(X) :- ( X >= 0'a, X =< 0'z ; X >= 0'A, X =< 0'Z ; X >= 0'0, X =< 0'9 ), !.
+upper_code(X, Y) :- X >= 0'a, X =< 0'z, !, Y is X - 32.
+upper_code(X, X).
+
+conj_list((A, B), Gs) :- !, conj_list(A, GA), conj_list(B, GB), append(GA, GB, Gs).
+conj_list(G, [G]).

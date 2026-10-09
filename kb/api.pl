@@ -117,19 +117,38 @@ api_term(graph(Role), obj([
             ( derived_predicate(P, N, D), role_domain(Role, D), edge_label(P, L) ), Ps1),
     append(Ps0, Ps1, Ps),
     findall(obj([id-T, label-L, color-C, shape-S]), ( type_style(T, C, S), label_of(T, L) ), Ts),
-    findall(obj([predicate-P, text-T]),
-            ( derived_predicate(P, _, D), role_domain(Role, D), rule_description(P, T) ), RDs),
+    findall(obj(RJ),
+            ( derived_predicate(P, _, D), role_domain(Role, D), rule_json(Role, P, RJ) ), RDs),
     findall(T, scoped_triple(Role, T), Raw0),
-    dedupe(Raw0, Raw),   % a conclusion reached two ways is still one edge
-    findall(obj([s-S, p-L, o-O, pred-P, domain-D, derived-bool(B), severity-Sv]),
-            ( member(t(S, L, O, P, K), Raw),
+    counted(Raw0, Raw),   % a conclusion reached two ways is still one edge; W counts the ways
+    findall(obj([s-S, p-L, o-O, pred-P, domain-D, derived-bool(B), severity-Sv, ways-W, via-Via]),
+            ( member(t(S, L, O, P, K)-W, Raw),
               pred_domain(P, D),
               G =.. [P, S, O], severity(G, Sv),
-              ( K == derived -> B = true ; B = false ) ),
+              ( K == derived -> B = true, via_of(G, Via) ; B = false, Via = null ) ),
             Trs),
-    findall(X, ( member(t(S, _, O, _, _), Raw), ( X = S ; X = O ), atom(X) ), Xs0),
+    findall(X, ( member(t(S, _, O, _, _)-_, Raw), ( X = S ; X = O ), atom(X) ), Xs0),
     sort(Xs0, Xs),
     findall(obj([id-X, type-T, label-L]), ( member(X, Xs), entity_type(X, T), phrase_of(X, L) ), Es).
+
+% One rule clause: its words, its slots and, for technical roles, the clause itself.
+rule_json(Role, P, [predicate-P, clause-I, text-T, slots-arr(Ns)|Tech]) :-
+    rule_clause(P, I, Named), rule_text(Named, T), clause_slots(Named, Ns),
+    (   role_feature(Role, technical) -> clause_pattern(Named, Pat), Tech = [pattern-Pat] ; Tech = [] ).
+
+% via: the clause that made a conclusion and what each of its slots stood for.
+via_of(G, Via) :- ( catch(once(solve(G, Proof)), _, fail), via_json(Proof, Via) -> true ; Via = null ).
+via_json(Proof, obj([rule-I, bindings-arr(Bs)])) :-
+    derivation(Proof, I, Ps), !,
+    findall(obj([name-N, value-T]), member(N-T, Ps), Bs).
+via_json(_, null).
+
+% [b, a, b] -> [a-1, b-2]
+counted(Xs, Counts) :- msort(Xs, Sorted), runs(Sorted, Counts).
+runs([], []).
+runs([X|Xs], [X-N|Rs]) :- run(X, Xs, 1, N, Rest), runs(Rest, Rs).
+run(X, [Y|Ys], N0, N, Rest) :- Y == X, !, N1 is N0 + 1, run(X, Ys, N1, N, Rest).
+run(_, Rest, N, N, Rest).
 
 % explain(E, Role): facts and explained conclusions about E within the role's domains.
 api_term(explain(E, Role), obj([id-E, problem-'not visible in this role scope'])) :-
@@ -140,12 +159,13 @@ api_term(explain(E, Role), obj([id-E, type-T, phrase-Ph, facts-arr(Fs), conclusi
     findall(Txt, ( kb_predicate(P, N, D), role_domain(Role, D), functor(H, P, N),
                    catch(H, _, fail), mentions(H, E), sentence(H, Txt) ), Fs0),
     sort(Fs0, Fs),
-    findall(GA-obj([predicate-P, severity-Sv, goal-GA, text-Txt, lines-arr(Ls), proof-PA]),
+    findall(GA-obj([predicate-P, severity-Sv, goal-GA, text-Txt, via-Via, lines-arr(Ls), proof-PA]),
             ( derived_predicate(P, 2, D), role_domain(Role, D),
               G =.. [P, E, _],
               catch(solve(G, Proof), _, fail),
               sentence(G, Txt),
               severity(G, Sv),
+              via_json(Proof, Via),
               once(proof_lines(Proof, 0, Lines)),
               findall(obj([depth-D1, kind-K, text-X]), member(line(D1, K, X), Lines), Ls),
               format(atom(GA), "~q", [G]),
@@ -346,10 +366,10 @@ explain_parsed(Text, G, Vs, Max, Role, J) :-
     first_per_key(Keyed, Sols0),   % one answer per distinct conclusion
     length(Sols0, N),
     take(Max, Sols0, Sols),
-    findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), explanation-X, lines-arr(Ls), proof-PA]),
+    findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), via-Via, explanation-X, lines-arr(Ls), proof-PA]),
             ( member(Vs1-G1-P1, Sols),
               findall(Name-Val, member(Name=Val, Vs1), Bs),
-              sentence(G1, T), severity(G1, Sv),
+              sentence(G1, T), severity(G1, Sv), via_json(P1, Via),
               ( P1 = rule(_, true, _, _) -> Dv = false ; Dv = true ),
               once(proof_lines(P1, 0, Lines)), lines_text(Lines, X),
               findall(obj([depth-D, kind-K, text-LT]), member(line(D, K, LT), Lines), Ls),
