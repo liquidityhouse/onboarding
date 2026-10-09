@@ -9,6 +9,7 @@
     "kb/schema.pl",
     "kb/explain.pl",
     "kb/api.pl",
+    "kb/audit.pl",
     "kb/readme.pl"
   ]
 }

@@ -5,6 +5,23 @@
 % relation usually needs at most one noun/2 or verb/2 line (atoms like
 % wallet_exposure are humanised to "wallet exposure" by default).
 
+% The primitives this file defines; the audit counts their entries as vocabulary.
+primitive(noun, 2).
+primitive(verb, 2).
+primitive(subject, 2).
+primitive(object, 2).
+primitive(arg_verb, 3).
+primitive(unit, 2).
+primitive(unit_word, 2).
+primitive(bare, 1).
+primitive(flag, 3).
+primitive(op_word, 2).
+primitive(op_symbol, 2).
+primitive(op_precedence, 2).
+primitive(action, 2).
+primitive(connective, 2).
+primitive(plural, 1).
+
 % noun(Concept, Phrase) — what a concept, attribute, type, role or user is called.
 % For a predicate P(S, O), it names O: noun(repo, team).
 noun(requires, requirement).
@@ -38,6 +55,16 @@ noun(file_summary, summary).
 noun(engine_requirement, 'required version').
 noun(identity_setting, setting).
 noun(stated_and_derived, 'stated and derived').
+noun(compression, 'compression template').
+noun(class_value, 'class-implied value').
+noun(identity, 'same pairs').
+noun(inverse, 'reversed pairs').
+noun(subsumes, 'already held elsewhere').
+noun(chain, 'two-step path').
+noun(interpolation, 'shared text template').
+noun(shared_conjunction, 'repeated conditions').
+noun(lexicon_default, 'default word').
+noun(dead_clause, 'unused rule clause').
 noun(per_user_settings, 'per-user settings').
 noun(ui, 'user interface').
 noun(knowledge, 'knowledge base').
