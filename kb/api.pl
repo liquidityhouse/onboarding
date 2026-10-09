@@ -169,7 +169,7 @@ api_term(explain(E, Role), obj([id-E, type-T, phrase-Ph, facts-arr(Fs), conclusi
     findall(Txt, ( kb_predicate(P, N, D), role_domain(Role, D), functor(H, P, N),
                    catch(H, _, fail), mentions(H, E), sentence(H, Txt) ), Fs0),
     sort(Fs0, Fs),
-    findall(GA-obj([predicate-P, severity-Sv, goal-GA, text-Txt, via-Via, lines-arr(Ls), proof-PA]),
+    findall(GA-obj([predicate-P, severity-Sv, goal-GA, text-Txt, via-Via, lines-arr(Ls)]),
             ( derived_predicate(P, 2, D), role_domain(Role, D),
               G =.. [P, E, _],
               catch(solve(G, Proof), _, fail),
@@ -178,9 +178,7 @@ api_term(explain(E, Role), obj([id-E, type-T, phrase-Ph, facts-arr(Fs), conclusi
               via_json(Role, Proof, Via),
               once(proof_lines(Proof, 0, Lines)),
               findall(obj([depth-D1, kind-K, text-X]), member(line(D1, K, X), Lines), Ls),
-              format(atom(GA), "~q", [G]),
-              proof_term(Proof, PT),
-              format(atom(PA), "~q", [PT]) ),
+              format(atom(GA), "~q", [G]) ),
             Keyed),
     first_per_key(Keyed, Cs).   % one explanation per conclusion, however many proofs
 
@@ -198,13 +196,6 @@ visible(E, Role) :-
     catch(H, _, fail), !.
 
 mentions(H, E) :- H =.. [_|Args], member(A, Args), A == E, !.
-
-% Proof without the named clause copies, for the raw view.
-proof_term(true, true) :- !.
-proof_term((A, B), (PA, PB)) :- !, proof_term(A, PA), proof_term(B, PB).
-proof_term(builtin(G), G) :- !.
-proof_term(rule(G, true, _, _), G) :- !.
-proof_term(rule(G, _, _, Sub), (G :- PS)) :- proof_term(Sub, PS).
 
 % --- Agent requests (MCP): progressive disclosure over the same knowledge ---
 %   api(overview(Domain, Role))           — domains, their relations and entities, services, rules
@@ -376,14 +367,13 @@ explain_parsed(Text, G, Vs, Max, Role, J) :-
     first_per_key(Keyed, Sols0),   % one answer per distinct conclusion
     length(Sols0, N),
     take(Max, Sols0, Sols),
-    findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), via-Via, explanation-X, lines-arr(Ls), proof-PA]),
+    findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), via-Via, explanation-X, lines-arr(Ls)]),
             ( member(Vs1-G1-P1, Sols),
               findall(Name-Val, member(Name=Val, Vs1), Bs),
               sentence(G1, T), severity(G1, Sv), via_json(Role, P1, Via),
               ( P1 = rule(_, true, _, _) -> Dv = false ; Dv = true ),
               once(proof_lines(P1, 0, Lines)), lines_text(Lines, X),
-              findall(obj([depth-D, kind-K, text-LT]), member(line(D, K, LT), Lines), Ls),
-              proof_term(P1, PT), format(atom(PA), "~q", [PT]) ),
+              findall(obj([depth-D, kind-K, text-LT]), member(line(D, K, LT), Lines), Ls) ),
             Answers),
     ( N > 0 -> Holds = true ; Holds = false ),
     J = obj([expression-Text, holds-bool(Holds), answers_total-N, answers-arr(Answers)]).

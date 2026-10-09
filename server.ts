@@ -31,7 +31,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { stripTypeScriptTypes } from "node:module";
 import { extname, join, normalize, resolve } from "node:path";
 import { current, type Current } from "./lib/kb-service.ts";
-import type { Audit, Conclusion, PlanRequest, Problem, Session, SessionInfo } from "./lib/kb-types.ts";
+import type { Audit, PlanRequest, Problem, Session, SessionInfo } from "./lib/kb-types.ts";
 import { plans } from "./lib/optimiser.ts";
 import { literal } from "./lib/prolog.ts";
 import { runQuery } from "./lib/sandbox.ts";
@@ -122,11 +122,6 @@ async function authorise(cur: Current, role: string, endpoint: string | undefine
   if (!allowed) throw new HttpError(403, `${endpoint} is not part of your role`);
 }
 
-/** Proof terms are technical detail; other roles get the English explanation only. */
-function withoutProofs<T extends { proof?: string }>(items: T[] | undefined, s: Session): void {
-  if (!can(s, "technical")) for (const item of items ?? []) delete item.proof;
-}
-
 function intParam(url: URL, name: string, fallback: number, min: number, max: number): number {
   const raw = url.searchParams.get(name);
   const n = raw === null ? fallback : Number(raw);
@@ -198,9 +193,7 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL) {
       return answer(res, await cached(`graph|${role}`, () => engine.graph(role)));
     case "explain": {
       if (!arg) throw new HttpError(400, "missing entity");
-      const ex = structuredClone(await cached(`explain|${role}|${arg}`, () => engine.explain(arg, role)));
-      withoutProofs<Conclusion>(ex.conclusions, session);
-      return answer(res, ex, 404);
+      return answer(res, await cached(`explain|${role}|${arg}`, () => engine.explain(arg, role)), 404);
     }
     case "overview": {
       const domain = url.searchParams.get("domain") || "all";
@@ -224,9 +217,7 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL) {
       const expression = url.searchParams.get("expression");
       if (!expression) throw new HttpError(400, "missing expression");
       const max = intParam(url, "max", 3, 1, 20);
-      const ex = await engine.explainGoal(expression, max, role);
-      withoutProofs(ex.answers, session);
-      return answer(res, ex);
+      return answer(res, await engine.explainGoal(expression, max, role));
     }
     case "POST query": {
       const { goal } = await body(req);

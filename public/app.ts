@@ -140,7 +140,7 @@ function prologDetail(rule: Rule, via: Via, expect?: string): HTMLElement | null
   const code = rule.source?.text ?? rule.pattern;
   if (!code) return null;
   const where = rule.source ? ` · ${rule.source.file}:${rule.source.line}` : "";
-  const box = el("details", { className: "prolog" }, el("summary", {}, `Prolog${where}`),
+  const box = el("details", { className: "prolog" }, el("summary", {}, `Technical detail${where}`),
     el("div", { className: "via-label" }, "Rule as written"), prolog(code));
   if (via.instance) box.append(el("div", { className: "via-label" }, "With this fact's values"), prolog(via.instance));
   if (via.query) {
@@ -195,7 +195,7 @@ function ruleCode(r: Rule): HTMLElement | string {
   const code = r.source?.text ?? r.pattern;
   if (!code) return "";
   const where = r.source ? `${r.source.file}:${r.source.line}` : `${r.predicate} · clause ${r.clause}`;
-  return el("details", { className: "prolog" }, el("summary", { className: "muted" }, `Prolog · ${where}`), prolog(code));
+  return el("details", { className: "prolog" }, el("summary", { className: "muted" }, `Technical detail · ${where}`), prolog(code));
 }
 
 /** The same in one line of text, for plain tooltips. */
@@ -640,9 +640,6 @@ async function renderExplain() {
     for (const c of bySeverity) {
       const details = el("details", { open: c.severity === "warning" || session().role === "risk_officer" },
         el("summary", {}, "How and why"), viaBlock(c.predicate, c.via, false, c.text), howWhyKey(), linesList(c.lines, ruleShown(c.lines, c.via)));
-      if (c.proof) {
-        details.append(el("details", {}, el("summary", {}, "Technical detail"), el("pre", { className: "raw", textContent: c.proof })));
-      }
       parts.push(el("div", { className: `card derived ${c.severity}` }, el("div", { className: "headline", textContent: c.text }), details));
     }
   }
@@ -703,7 +700,6 @@ async function whyBody(t: Triple): Promise<HTMLElement> {
     if (!a.derived) { box.append(el("p", { className: "muted" }, STATED_HINT)); return box; }
     const via = a.via ?? t.via;
     box.append(viaBlock(t.pred, via, false, a.text), howWhyKey(), linesList(a.lines ?? [], ruleShown(a.lines ?? [], via)));
-    if (a.proof) box.append(el("details", {}, el("summary", {}, "Technical detail"), el("pre", { className: "raw", textContent: a.proof })));
     return box;
   } catch (e) {
     return el("p", { className: "muted" }, (e as Error).message);

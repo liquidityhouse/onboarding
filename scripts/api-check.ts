@@ -58,9 +58,9 @@ try {
 
   check("risk officer cannot explain a person", (await dominic("/api/explain/adam")).status === 404);
   const exD = await dominic("/api/explain/dope");
-  check("risk officer explains dope without proof terms", exD.status === 200 && exD.body.conclusions?.length > 0 && !("proof" in exD.body.conclusions[0]));
+  check("risk officer explains dope without technical detail", exD.status === 200 && exD.body.conclusions?.length > 0 && !("instance" in (exD.body.conclusions[0].via ?? {})));
   const exA = await adam("/api/explain/dope");
-  check("developer gets proof terms", exA.status === 200 && typeof exA.body.conclusions?.[0]?.proof === "string");
+  check("developer gets technical detail", exA.status === 200 && typeof exA.body.conclusions?.[0]?.via?.instance === "string");
   const link = await adam(`/api/explain/${encodeURIComponent("https://github.com/liquidityhouse/riskx")}`);
   check("an entity id containing slashes", link.status === 200 && link.body.type === "url", JSON.stringify(link.body).slice(0, 120));
 
@@ -78,7 +78,7 @@ try {
 
   check("risk officer cannot explain onboarding goals", (await dominic(`/api/explain-goal?expression=${encodeURIComponent("url(riskx, U)")}`)).status === 400);
   const eg = await dominic(`/api/explain-goal?expression=${encodeURIComponent("soft_credit_limit(dope, L)")}`);
-  check("risk officer explains a credit limit, no proof term", eg.status === 200 && eg.body.holds === true && !("proof" in eg.body.answers[0]));
+  check("risk officer explains a credit limit, no technical detail", eg.status === 200 && eg.body.holds === true && !("instance" in (eg.body.answers[0].via ?? {})));
 
   check("risk officer cannot verify onboarding requirements", (await dominic("/api/verify/riskx")).status === 400);
   const v = await adam("/api/verify/injectx?completed=onboarding");

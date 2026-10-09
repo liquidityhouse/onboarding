@@ -43,7 +43,7 @@ export interface Graph extends Problem {
 }
 
 export interface Line { depth: number; kind: string; text: string }
-export interface Conclusion { predicate: string; severity: string; goal: string; text: string; via: Via | null; lines: Line[]; proof?: string }
+export interface Conclusion { predicate: string; severity: string; goal: string; text: string; via: Via | null; lines: Line[] }
 export interface Explanation extends Problem { id: string; type: string; phrase: string; facts: string[]; conclusions: Conclusion[] }
 
 export interface Overview extends Problem {
@@ -70,7 +70,7 @@ export interface GoalExplanation extends Problem {
     /** false when the goal is a stated fact rather than inferred by a rule */
     derived: boolean;
     via?: Via | null;
-    explanation: string; lines?: Line[]; proof?: string;
+    explanation: string; lines?: Line[];
   }[];
   rule?: string;
   descriptions?: string[];
