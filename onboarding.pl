@@ -78,6 +78,12 @@ needs_setup(injectx, bun_runtime).
 needs_setup(injectx, aws_dev_role).
 needs_setup(riskx, docker_compose).
 
+% --- InjectX public API ---
+% The public API reference (OpenAPI) is served by injectx itself, under its API host
+% on the cluster; it is where the external API documentation lives (GOAT-11).
+deployed_on(injectx, eu_central_1).
+api_docs_path(injectx, '/openapi').
+
 % --- RiskX platform ---
 dashboard(riskx, riskx_dashboard).
 deployed_on(riskx, eu_central_1).
@@ -96,6 +102,7 @@ riskx(agregate, metadata).
 :- dynamic(belongs_to/2).
 :- dynamic(email_address/2).
 :- dynamic(requires/2).
+:- dynamic(api_reference/2).
 
 % Members of a team also belong to the organisation the team is part of.
 belongs_to(Person, Org) :-
@@ -153,6 +160,14 @@ url(Dashboard, Url) :-
     deployed_on(App, Cluster),
     cluster_domain(Cluster, Domain),
     format(atom(Url0), 'https://dashboard.~w.~w/', [App, Domain]),
+    Url = Url0.
+
+% A service's API reference sits on its API host in the cluster it is deployed on.
+api_reference(Service, Url) :-
+    api_docs_path(Service, Path),
+    deployed_on(Service, Cluster),
+    cluster_domain(Cluster, Domain),
+    format(atom(Url0), 'https://api.~w.~w~w', [Service, Domain, Path]),
     Url = Url0.
 
 % Repos in the same organisation are siblings (riskx and injectx, for example).

@@ -41,6 +41,7 @@ kb_predicate(cluster_domain, 2, platform).
 kb_predicate(riskx, 2, platform).
 kb_predicate(data_source, 2, platform).
 kb_predicate(monitors, 2, platform).
+kb_predicate(api_docs_path, 2, platform).
 kb_predicate(operator, 2, risk).
 kb_predicate(ggr_90d, 2, risk).
 kb_predicate(dau, 2, risk).
@@ -68,6 +69,7 @@ derived_predicate(soft_credit_limit, 2, risk).
 derived_predicate(daily_allowance, 2, risk).
 derived_predicate(exposure_warning, 2, risk).
 derived_predicate(in_portfolio, 2, platform).
+derived_predicate(api_reference, 2, platform).
 derived_predicate(url, 2, onboarding).
 derived_predicate(sibling_repo, 2, onboarding).
 derived_predicate(belongs_to, 2, onboarding).
@@ -84,7 +86,7 @@ derived_predicate(described_as, 2, system).
 % --- Entity types (first matching rule wins) ---
 entity_type(E, value) :- number(E), !.
 entity_type(E, url) :- atom(E), sub_atom(E, 0, _, _, http), !.
-entity_type(E, text) :- catch((purpose(_, E) ; file_summary(_, E)), _, fail), !.
+entity_type(E, text) :- catch((purpose(_, E) ; file_summary(_, E) ; api_docs_path(_, E)), _, fail), !.
 entity_type(E, file) :- catch((source_file(_, E) ; kb_file(_, E)), _, fail), !.
 entity_type(E, Kind) :- catch(component(E, Kind), _, fail), !.
 entity_type(E, library) :- catch(package_version(E, _), _, fail), !.
