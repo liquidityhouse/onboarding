@@ -145,7 +145,7 @@ purpose(add_relation, 'to add a relation with its facts, one kb_predicate/3 line
 purpose(describe_in_headers, 'to describe each file in the first sentence of its header comment, of medium length; components, the README and the explorer read it from there').
 purpose(fresh_format, 'to format text into a fresh variable and then unify (Url = Url0), because in Trealla format(atom(Bound), …) inside a clause succeeds without checking').
 purpose(dynamic_rules, 'to declare rules the explorer explains as dynamic, because clause/2 cannot read static predicates in Trealla').
-purpose(isolate_reflection, 'to ask predicate_property/2 only under negation (\\+ \\+ to keep the answer) and never catch errors from clause/2, because in Trealla both leave bindings that backtracking does not undo').
+purpose(isolate_reflection, 'to ask predicate_property/2 only under negation (\\+ \\+ to keep the answer), never catch errors from clause/2, and walk terms with separate clauses and functor/3 and arg/3 rather than if-then-else or =.., because in Trealla these leave or lose bindings when backtracking').
 purpose(regenerate_readme, 'to change the knowledge (kb/*.pl, file headers, package.json) and run npm run readme, rather than editing README.md').
 
 % --- Inferred knowledge ---

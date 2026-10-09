@@ -117,6 +117,7 @@ arg_label(P, I, L) :- noun_of(P, N), format(atom(L), "~w (~w)", [N, I]).
 % phrase_of(Entity, Text): "operator 'dope'"; bare types use the entity's own noun or itself.
 phrase_of(E, T) :- number(E), !, num_text(E, T).
 phrase_of(n(N, _), T) :- !, format(atom(T), "the ~w", [N]).
+phrase_of(a(N, _), T) :- !, ( atom_codes(N, [C|_]), memberchk(C, "aeiou") -> A = an ; A = a ), format(atom(T), "~w ~w", [A, N]).
 phrase_of(E, T) :-
     entity_type(E, Ty),
     (   bare(Ty) -> ( atom(E), noun(E, N) -> T = N ; format(atom(T), "~w", [E]) )
@@ -162,9 +163,11 @@ clause_text(P, [X], T) :- !,
     phrase_of(P, S), edge_label(P, V), phrase_of(X, O),
     format(atom(T), "~w ~w ~w", [S, V, O]).
 clause_text(P, [S, O|Extra], T) :- relation(P), !,
-    phrase_of(S, ST), verb(P, V), phrase_of(O, OT),
+    phrase_of(S, ST), verb(P, V),
     extras(P, 3, Extra, XT),
-    format(atom(T), "~w ~w ~w~w", [ST, V, OT, XT]).
+    (   O = a(N, _), atom_concat(_, N, V)          % "has status", not "has status a status"
+    ->  format(atom(T), "~w ~w~w", [ST, V, XT])
+    ;   phrase_of(O, OT), format(atom(T), "~w ~w ~w~w", [ST, V, OT, XT]) ).
 clause_text(P, [S, V|Extra], T) :-
     noun_of(P, N), copula(P, Is), phrase_of(S, ST), value_text(P, V, VT),
     extras(P, 3, Extra, XT),
@@ -180,13 +183,30 @@ extras(P, I, [X|Xs], T) :-
 % "soft credit limit = 90-day gross gaming revenue × ggr factor + ..."
 % "the exposure level is high when wallet exposure is greater than ..."
 % "the repository is a sibling of the other repository when ..."
-rule_text((H :- B), T) :-
+% A slot used only once is any value: "a feature" rather than "the feature".
+rule_text(Named, T) :- indefinite(Named, N1), rule_text_(N1, T).
+
+indefinite(Named, Out) :-
+    findall(X, ( named_binding(Named, Named, b(N, C, _)), X = N-C ), All),
+    findall(N-C, ( member(N-C, All), N \== it, findall(y, member(N-C, All), [_]) ), Once),
+    once_slots(Named, Once, Out).
+
+once_slots(T, _, T) :- ( var(T) ; atomic(T) ; string(T) ), !.
+once_slots(T, Once, U) :- functor(T, n, 2), !,
+    arg(1, T, N), arg(2, T, C),
+    ( memberchk(N-C, Once) -> U = a(N, C) ; U = T ).
+once_slots(T, Once, U) :-
+    functor(T, F, A), functor(U, F, A), once_args(A, T, Once, U).
+once_args(0, _, _, _) :- !.
+once_args(K, T, Once, U) :- arg(K, T, X), arg(K, U, Y), once_slots(X, Once, Y), K1 is K - 1, once_args(K1, T, Once, U).
+
+rule_text_((H :- B), T) :-
     H =.. [P, S, O], relation(P), !,
     verb(P, V), phrase_of(S, ST), phrase_of(O, OT),
     goal_texts(B, Cs), join_and(Cs, CT), connective(when, When),
     format(atom(T0), "~w ~w ~w ~w ~w", [ST, V, OT, When, CT]),
     as_sentence(T0, T).
-rule_text((H :- B), T) :-
+rule_text_((H :- B), T) :-
     H =.. [P, _, V],
     noun_of(P, N),
     (   calc_goal(B, V, E)
@@ -340,14 +360,17 @@ derivation(rule(G, Body, Named, _), I, Bs) :-
     first_binding(Bs0, Bs).
 
 % Walk the named clause and its instance side by side; a slot n(N, C) meets its value.
+% Separate clauses with functor/3 and arg/3, not if-then-else or =.. (practice
+% isolate_reflection): in Trealla both lose bindings when the walk backtracks.
 named_binding(NT, IT, B) :-
-    (   NT = n(N, C)
-    ->  nonvar(IT), B = b(N, C, IT)
-    ;   compound(NT), compound(IT), \+ string(NT),
-        NT =.. [F|NAs], IT =.. [F|IAs],
-        length(NAs, L), length(IAs, L),
-        nth1(K, NAs, NA), nth1(K, IAs, IA),
-        named_binding(NA, IA, B) ).
+    compound(NT), \+ string(NT), functor(NT, F, A),
+    named_binding(F, A, NT, IT, B).
+named_binding(n, 2, NT, IT, b(N, C, IT)) :- !,
+    nonvar(IT), arg(1, NT, N), arg(2, NT, C).
+named_binding(F, A, NT, IT, B) :-
+    compound(IT), functor(IT, F, A),
+    between(1, A, K), arg(K, NT, NA), arg(K, IT, IA),
+    named_binding(NA, IA, B).
 
 binding_text(C, V, T) :- number(V), !, value_text(C, V, T).
 binding_text(_, V, V) :- atom(V), !.
@@ -362,6 +385,35 @@ first_binding([N-T|Bs], [N-T|Us]) :-
 clause_slots(Named, Ns) :-
     findall(N, ( named_binding(Named, Named, b(N, _, _)), N \== it ), Ns0),
     dedupe(Ns0, Ns).
+
+% --- A conclusion's clause with its values, and the query that asks for it again ---
+% Out = Out0 checks (practice fresh_format) read as X = X and are left out.
+instance_text((H :- B), Text) :-
+    Opts = [quoted(true), double_quotes(true)],
+    write_term_to_atom(HT, H, Opts),
+    conj_list(B, Gs0),
+    findall(G, ( member(G, Gs0), \+ ( nonvar(G), G = (L = R), L == R ) ), Gs),
+    findall(GT, ( member(G, Gs), write_term_to_atom(GT, G, Opts) ), GTs),
+    atomic_list_concat(GTs, ',\n    ', BT),
+    format(atom(Text), "~w :-~n    ~w.", [HT, BT]).
+
+% The head as written in clause_source/6 with its first argument set to this subject and
+% the rest left as the file's variables: relies_on(explorer_ui, Dependency).
+query_text(G, I, Q) :-
+    functor(G, P, A),
+    catch(clause_source(P, A, I, _, _, Text), _, fail),
+    catch(read_term_from_atom(Text, Clause, [variable_names(Vs)]), _, fail),
+    ( Clause = (H :- _) -> true ; H = Clause ),
+    arg(1, H, S), arg(1, G, S0), ( var(S) -> S = S0 ; true ),
+    name_variables(Vs, Names),
+    write_term_to_atom(Q0, H, [quoted(true), double_quotes(true)]),
+    unquote_all(Names, Q0, Q), !.
+query_text(G, _, Q) :- write_term_to_atom(Q, G, [quoted(true)]).
+
+name_variables([], []).
+name_variables([N = V|Vs], Ns) :-
+    ( var(V) -> V = N, Ns = [N|Ns1] ; Ns = Ns1 ),
+    name_variables(Vs, Ns1).
 
 % --- A named clause as Prolog, slots as variables: relies_on(Component, Dependency) :- ... ---
 % Slots print as their variable names; the Out = Out0 pairs of practice fresh_format

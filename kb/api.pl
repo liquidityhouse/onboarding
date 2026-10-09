@@ -125,23 +125,33 @@ api_term(graph(Role), obj([
             ( member(t(S, L, O, P, K)-W, Raw),
               pred_domain(P, D),
               G =.. [P, S, O], severity(G, Sv),
-              ( K == derived -> B = true, via_of(G, Via) ; B = false, Via = null ) ),
+              ( K == derived -> B = true, via_of(Role, G, Via) ; B = false, Via = null ) ),
             Trs),
     findall(X, ( member(t(S, _, O, _, _)-_, Raw), ( X = S ; X = O ), atom(X) ), Xs0),
     sort(Xs0, Xs),
     findall(obj([id-X, type-T, label-L]), ( member(X, Xs), entity_type(X, T), phrase_of(X, L) ), Es).
 
-% One rule clause: its words, its slots and, for technical roles, the clause itself.
+% One rule clause: its words, its slots and, for technical roles, the clause as written.
 rule_json(Role, P, [predicate-P, clause-I, text-T, slots-arr(Ns)|Tech]) :-
     rule_clause(P, I, Named), rule_text(Named, T), clause_slots(Named, Ns),
-    (   role_feature(Role, technical) -> clause_pattern(Named, Pat), Tech = [pattern-Pat] ; Tech = [] ).
+    (   role_feature(Role, technical) -> rule_source(P, I, Named, Tech) ; Tech = [] ).
 
-% via: the clause that made a conclusion and what each of its slots stood for.
-via_of(G, Via) :- ( catch(once(solve(G, Proof)), _, fail), via_json(Proof, Via) -> true ; Via = null ).
-via_json(Proof, obj([rule-I, bindings-arr(Bs)])) :-
+% Its file, line and text (clause_source/6 is generated from the KB files); a reprint
+% from the loaded clause when the file has no such clause.
+rule_source(P, I, _, [source-obj([file-F, line-L, text-T])]) :-
+    catch(clause_source(P, _, I, F, L, T), _, fail), !.
+rule_source(_, _, Named, [pattern-Pat]) :- clause_pattern(Named, Pat).
+
+% via: the clause that made a conclusion and what each of its slots stood for; technical
+% roles also get the clause with these values and the query that asks for it again.
+via_of(Role, G, Via) :- ( catch(once(solve(G, Proof)), _, fail), via_json(Role, Proof, Via) -> true ; Via = null ).
+via_json(Role, Proof, obj([rule-I, bindings-arr(Bs)|Tech])) :-
     derivation(Proof, I, Ps), !,
-    findall(obj([name-N, value-T]), member(N-T, Ps), Bs).
-via_json(_, null).
+    findall(obj([name-N, value-T]), member(N-T, Ps), Bs),
+    (   role_feature(Role, technical), Proof = rule(G, Body, _, _)
+    ->  instance_text((G :- Body), IT), query_text(G, I, QT), Tech = [instance-IT, query-QT]
+    ;   Tech = [] ).
+via_json(_, _, null).
 
 % [b, a, b] -> [a-1, b-2]
 counted(Xs, Counts) :- msort(Xs, Sorted), runs(Sorted, Counts).
@@ -165,7 +175,7 @@ api_term(explain(E, Role), obj([id-E, type-T, phrase-Ph, facts-arr(Fs), conclusi
               catch(solve(G, Proof), _, fail),
               sentence(G, Txt),
               severity(G, Sv),
-              via_json(Proof, Via),
+              via_json(Role, Proof, Via),
               once(proof_lines(Proof, 0, Lines)),
               findall(obj([depth-D1, kind-K, text-X]), member(line(D1, K, X), Lines), Ls),
               format(atom(GA), "~q", [G]),
@@ -369,7 +379,7 @@ explain_parsed(Text, G, Vs, Max, Role, J) :-
     findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), via-Via, explanation-X, lines-arr(Ls), proof-PA]),
             ( member(Vs1-G1-P1, Sols),
               findall(Name-Val, member(Name=Val, Vs1), Bs),
-              sentence(G1, T), severity(G1, Sv), via_json(P1, Via),
+              sentence(G1, T), severity(G1, Sv), via_json(Role, P1, Via),
               ( P1 = rule(_, true, _, _) -> Dv = false ; Dv = true ),
               once(proof_lines(P1, 0, Lines)), lines_text(Lines, X),
               findall(obj([depth-D, kind-K, text-LT]), member(line(D, K, LT), Lines), Ls),
