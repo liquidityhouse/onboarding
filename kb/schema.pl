@@ -10,9 +10,22 @@ domain(risk).
 
 % --- Relations shown in the graph: kb_predicate(Name, Arity, Domain) ---
 kb_predicate(onboarding, 1, onboarding).
+kb_predicate(invites, 2, onboarding).
+kb_predicate(works_as, 2, onboarding).
+kb_predicate(reachable_in, 2, onboarding).
+kb_predicate(github_account, 2, onboarding).
 kb_predicate(repo, 2, onboarding).
-kb_predicate(organisation, 3, onboarding).
+kb_predicate(slack_client_id, 2, onboarding).
+kb_predicate(invitation_sent_to, 2, onboarding).
+kb_predicate(slack_channel, 2, onboarding).
+kb_predicate(slack_channel_id, 2, onboarding).
+kb_predicate(email_domain, 2, onboarding).
+kb_predicate(signs_in_with, 2, onboarding).
+kb_predicate(jira_site, 2, onboarding).
+kb_predicate(jira_board, 2, onboarding).
 kb_predicate(dashboard, 2, platform).
+kb_predicate(deployed_on, 2, platform).
+kb_predicate(cluster_domain, 2, platform).
 kb_predicate(riskx, 2, platform).
 kb_predicate(data_source, 2, platform).
 kb_predicate(monitored_by, 2, platform).
@@ -27,16 +40,27 @@ kb_predicate(risk_weight, 2, risk).
 derived_predicate(soft_credit_limit, 2, risk).
 derived_predicate(daily_allowance, 2, risk).
 derived_predicate(exposure_warning, 2, risk).
+derived_predicate(url, 2, onboarding).
+derived_predicate(sibling_repo, 2, onboarding).
 
 % --- Entity types (first matching rule wins) ---
 entity_type(E, value) :- number(E), !.
 entity_type(E, url) :- atom(E), sub_atom(E, 0, _, _, http), !.
+entity_type(E, identifier) :- catch((slack_client_id(_, E) ; slack_channel_id(_, E)), _, fail), !.
+entity_type(E, account) :- catch((github_account(_, E) ; jira_site(_, E)), _, fail), !.
+entity_type(E, domain) :- catch((email_domain(_, E) ; cluster_domain(_, E)), _, fail), !.
+entity_type(E, email) :- catch((email_domain(E, _) ; invitation_sent_to(_, E) ; signs_in_with(_, E)), _, fail), !.
+entity_type(E, workspace) :- catch(slack_client_id(E, _), _, fail), !.
+entity_type(E, channel) :- catch(slack_channel(_, E), _, fail), !.
+entity_type(E, person) :- catch((invites(E, _) ; works_as(E, _)), _, fail), !.
+entity_type(E, jira_project) :- catch(jira_site(E, _), _, fail), !.
+entity_type(E, dashboard) :- catch(dashboard(_, E), _, fail), !.
+entity_type(E, cluster) :- catch(cluster_domain(E, _), _, fail), !.
 entity_type(E, operator) :- catch(operator(E, _), _, fail), !.
 entity_type(E, repository) :- catch(repo(E, _), _, fail), !.
-entity_type(E, organisation) :- catch(organisation(E, _, _), _, fail), !.
+entity_type(E, organisation) :- catch(github_account(E, _), _, fail), !.
 entity_type(E, weight) :- catch(risk_weight(E, _), _, fail), !.
 entity_type(E, service) :- catch(data_source(_, E), _, fail), !.
-entity_type(E, service) :- catch(organisation(_, E, _), _, fail), !.
 entity_type(E, dataset) :- catch((riskx(E, _) ; riskx(_, E)), _, fail), !.
 entity_type(E, status) :- catch((operator(_, E) ; exposure_warning(_, E)), _, fail), !.
 entity_type(E, step) :- catch(onboarding(E), _, fail), !.
@@ -51,6 +75,16 @@ type_style(dataset, '#2f9e44', database).
 type_style(weight, '#f59f00', triangle).
 type_style(status, '#868e96', ellipse).
 type_style(step, '#d6336c', star).
+type_style(workspace, '#9c36b5', square).
+type_style(channel, '#cc5de8', ellipse).
+type_style(person, '#94d82d', dot).
+type_style(identifier, '#74c0fc', box).
+type_style(account, '#20c997', box).
+type_style(domain, '#15aabf', text).
+type_style(email, '#fd7e14', box).
+type_style(jira_project, '#1c7ed6', diamond).
+type_style(dashboard, '#f76707', hexagon).
+type_style(cluster, '#5c940d', box).
 type_style(url, '#495057', text).
 type_style(value, '#adb5bd', box).
 type_style(concept, '#5c7cfa', dot).

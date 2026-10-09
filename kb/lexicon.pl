@@ -6,6 +6,7 @@
 % wallet_exposure are humanised to "wallet exposure" by default).
 
 % noun(Concept, Phrase) — what a concept, attribute, type, role or user is called.
+% For a predicate P(S, O), it names O: noun(repo, organisation).
 noun(ggr_90d, '90-day gross gaming revenue').
 noun(net_deposits, 'net player deposits').
 noun(dau, 'daily active user count').
@@ -15,6 +16,21 @@ noun(weight, 'risk weight').
 noun(step, 'onboarding step').
 noun(url, link).
 noun(platform, 'RiskX platform').
+noun(workspace, 'Slack workspace').
+noun(channel, 'Slack channel').
+noun(identifier, 'ID').
+noun(jira_project, 'Jira project').
+noun(repo, organisation).
+noun(sibling_repo, 'other repository').
+noun(github_account, 'GitHub account').
+noun(slack_channel, 'Slack channel').
+noun(slack_client_id, 'Slack client ID').
+noun(slack_channel_id, 'Slack channel ID').
+noun(jira_site, 'Jira site').
+noun(jira_board, 'Jira board').
+noun(deployed_on, cluster).
+noun(personal_email, 'your personal email').
+noun(work_email, 'your work email').
 noun(admin, administrator).
 noun(dominic, 'Dominic, Head of Risk').
 noun(adam, 'Adam, Software Engineer').
@@ -25,16 +41,23 @@ plural(net_deposits).
 % verb(Relation, Phrase) — relations read as "Subject Verb Object".
 % Predicates without a verb are attributes: "the <noun> of Subject is Value".
 verb(onboarding, includes).
-verb(repo, 'is hosted at').
-verb(organisation, 'is an organisation on').
-verb(dashboard, 'has a dashboard at').
+verb(invites, 'invites you to').
+verb(works_as, 'works as').
+verb(reachable_in, 'is reachable in').
+verb(repo, 'belongs to').
+verb(sibling_repo, 'is a sibling of').
+verb(invitation_sent_to, 'is joined via an invitation to').
+verb(signs_in_with, 'is reached with').
+verb(dashboard, 'is shown on').
+verb(deployed_on, 'is deployed on').
 verb(riskx, 'flows into').
 verb(data_source, 'pulls data from').
 verb(monitored_by, 'is monitored by').
 verb(operator, 'has status').
+verb(slack_channel, contains).
 
 % arg_verb(Relation, ArgN, Phrase) — how extra arguments of n-ary facts attach.
-arg_verb(organisation, 3, 'reachable at').
+:- dynamic(arg_verb/3).
 
 % unit(Attribute, Unit) and how a unit is written after a number.
 unit(ggr_90d, usd).
@@ -49,6 +72,11 @@ unit_word(usd, 'USD').
 bare(url).
 bare(value).
 bare(status).
+bare(identifier).
+bare(account).
+bare(domain).
+bare(email).
+bare(concept).
 
 % flag(Attribute, Value, Severity) — values that deserve attention.
 flag(exposure_warning, high, warning).
@@ -60,6 +88,7 @@ op_word(>=, 'is at least').
 op_word(=<, 'is at most').
 op_word(=:=, equals).
 op_word(=\=, 'differs from').
+op_word(\==, 'differs from').
 op_symbol(+, '+').
 op_symbol(-, '−').
 op_symbol(*, '×').
@@ -74,3 +103,5 @@ connective(and, and).
 connective(when, when).
 connective(calculated, 'Calculated:').
 connective(checked, 'Checked:').
+connective(built, 'Built:').
+connective(from, from).
