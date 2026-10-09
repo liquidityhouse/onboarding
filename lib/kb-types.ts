@@ -48,7 +48,12 @@ export interface GoalExplanation extends Problem {
   expression: string;
   holds?: boolean;
   answers_total?: number;
-  answers?: { bindings: Record<string, unknown>; text: string; severity: string; explanation: string; proof?: string }[];
+  answers?: {
+    bindings: Record<string, unknown>; text: string; severity: string;
+    /** false when the goal is a stated fact rather than inferred by a rule */
+    derived: boolean;
+    explanation: string; lines?: Line[]; proof?: string;
+  }[];
   rule?: string;
   descriptions?: string[];
 }

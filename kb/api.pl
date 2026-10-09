@@ -342,14 +342,17 @@ explain_parsed(Text, G, _, _, Role, obj([expression-Text, rule-G, descriptions-a
     findall(D, rule_description(G, D), Ds).
 explain_parsed(Text, G, Vs, Max, Role, J) :-
     callable(G), functor(G, P, A), explainable(P, A, Role), !,
-    findall(Vs-G-Proof, catch(solve(G, Proof), _, fail), Sols0),
+    findall(GA-(Vs-G-Proof), ( catch(solve(G, Proof), _, fail), format(atom(GA), "~q", [G]) ), Keyed),
+    first_per_key(Keyed, Sols0),   % one answer per distinct conclusion
     length(Sols0, N),
     take(Max, Sols0, Sols),
-    findall(obj([bindings-obj(Bs), text-T, severity-Sv, explanation-X, proof-PA]),
+    findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), explanation-X, lines-arr(Ls), proof-PA]),
             ( member(Vs1-G1-P1, Sols),
               findall(Name-Val, member(Name=Val, Vs1), Bs),
               sentence(G1, T), severity(G1, Sv),
+              ( P1 = rule(_, true, _, _) -> Dv = false ; Dv = true ),
               once(proof_lines(P1, 0, Lines)), lines_text(Lines, X),
+              findall(obj([depth-D, kind-K, text-LT]), member(line(D, K, LT), Lines), Ls),
               proof_term(P1, PT), format(atom(PA), "~q", [PT]) ),
             Answers),
     ( N > 0 -> Holds = true ; Holds = false ),

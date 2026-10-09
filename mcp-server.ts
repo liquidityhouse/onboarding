@@ -111,7 +111,12 @@ server.registerTool(
     },
     annotations: readOnly,
   },
-  ({ expression, max_answers, scope }) => answer((e) => e.explainGoal(expression, max_answers, scope)),
+  ({ expression, max_answers, scope }) =>
+    answer(async (e) => {
+      const ex = await e.explainGoal(expression, max_answers, scope);
+      for (const a of ex.answers ?? []) delete a.lines; // agents read `explanation`; lines are for the explorer
+      return ex;
+    }),
 );
 
 await current();

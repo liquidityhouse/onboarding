@@ -2,7 +2,7 @@
 // answers only within the viewer's role; this page draws and filters what it is given.
 
 import { DataSet, Network, type Edge, type Node as VisNode, type Options } from "vis-network/standalone";
-import type { Explanation, Graph, Session, SessionInfo, Triple, TypeStyle } from "../lib/kb-types.ts";
+import type { Explanation, GoalExplanation, Graph, Line, Session, SessionInfo, Triple, TypeStyle } from "../lib/kb-types.ts";
 
 type View = "mindmap" | "hierarchy" | "table" | "console";
 type Direction = "LR" | "UD" | "RL" | "DU";
@@ -12,6 +12,8 @@ interface Settings {
   focus: string | null;
   depth: number;
   domains: string[];
+  /** Domains this viewer has been shown before; a newly visible domain starts ticked. */
+  seenDomains: string[];
   hiddenPredicates: string[];
   hiddenTypes: string[];
   showValues: boolean;
@@ -75,12 +77,68 @@ const colorOf = (type: string) => settings.colors[type] ?? styleOf(type).color;
 const shapeOf = (type: string) => settings.shapes[type] ?? styleOf(type).shape;
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
+// --- Stated vs derived ---
+const DERIVED_HINT = "Derived: inferred by a rule, not stated. Open it to see how (the rule) and why (the facts and calculations it used).";
+const STATED_HINT = "Stated: written in the knowledge base as a fact.";
+const LITERAL_TYPES = new Set(["value", "url", "text"]);
+
+/** The rule(s) behind a derived relation, in words: the "how". */
+const rulesFor = (pred: string) => snap.rules.filter((r) => r.predicate === pred).map((r) => r.text);
+
+function kindBadge(derived: boolean) {
+  return el("span", {
+    className: `kind-badge ${derived ? "derived" : "stated"}`,
+    textContent: derived ? "derived" : "stated",
+    title: derived ? DERIVED_HINT : STATED_HINT,
+  });
+}
+
+/** A Prolog literal for a goal sent to /api/explain-goal (parsed there, never run as code). */
+const lit = (x: string | number) =>
+  typeof x === "number" ? String(x) : `'${x.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+
+/** The goal a triple stands for, when its relation is unary or binary. */
+function goalOf(t: Triple): string | null {
+  const arity = snap.predicates.find((p) => p.id === t.pred)?.arity;
+  if (arity === 2) return `${t.pred}(${lit(t.s)}, ${lit(t.o)})`;
+  if (arity === 1) return `${t.pred}(${lit(t.o)})`;
+  return null;
+}
+
+/** Proof lines as a list: ƒ how (rule) · • why (fact) · = calculation · ∴ conclusion. */
+function linesList(lines: Line[], from = 0) {
+  return el("ul", { className: "lines" }, ...lines.slice(from).map((l) => {
+    const li = el("li", { className: l.kind, textContent: l.text, title: LINE_HINT[l.kind] ?? "" });
+    li.style.setProperty("--depth", String(l.depth - (from ? 1 : 0)));
+    return li;
+  }));
+}
+const LINE_HINT: Record<string, string> = {
+  rule: "How: the rule that infers this",
+  fact: "Why: a stated fact the rule used",
+  calc: "Why: the calculation or check, with the values used",
+  conclusion: "A derived fact this one builds on",
+  warning: "A derived fact that needs attention",
+};
+const howWhyKey = () => el("p", { className: "how-why muted" }, "ƒ how (rule) · • why (facts used) · = calculation");
+
+/** Tooltip for an edge: stated, or derived with its rule. */
+function edgeTitle(t: Triple): HTMLElement {
+  const box = el("div", { className: "edge-tip" }, el("strong", {}, t.derived ? "Derived" : "Stated fact"), ` · ${t.p}`);
+  if (t.derived) {
+    for (const r of rulesFor(t.pred)) box.append(el("div", {}, `How: ${r}`));
+    box.append(el("div", { className: "muted" }, "Click the connection to see why."));
+  }
+  return box;
+}
+
 function defaults(s: Session): Settings {
   return {
     view: "mindmap",
     focus: s.start,
     depth: 2,
     domains: [...s.domains],
+    seenDomains: [...s.domains],
     hiddenPredicates: [],
     hiddenTypes: [],
     showValues: s.role === "risk_officer",
@@ -97,8 +155,12 @@ function defaults(s: Session): Settings {
 
 function loadSettings() {
   const s = session();
-  settings = { ...defaults(s), ...(store.get<Partial<Settings>>(`kbx:settings:${userId}`) ?? {}) };
-  settings.domains = settings.domains.filter((d) => s.domains.includes(d));
+  const saved = store.get<Partial<Settings>>(`kbx:settings:${userId}`) ?? {};
+  settings = { ...defaults(s), ...saved };
+  const seen = saved.seenDomains ?? saved.domains ?? s.domains;
+  const fresh = s.domains.filter((d) => !seen.includes(d));
+  settings.domains = [...settings.domains, ...fresh].filter((d) => s.domains.includes(d));
+  settings.seenDomains = [...new Set([...seen, ...s.domains])];
   if (!VIEWS.some((v) => v.id === settings.view && (!v.feature || can(v.feature)))) settings.view = "mindmap";
 }
 
@@ -128,7 +190,7 @@ function buildGraph(): { nodes: Map<string, GraphNode>; edges: GraphEdge[] } {
   scopedTriples().forEach((t, i) => {
     const sType = typeOf(t.s);
     const oType = typeOf(t.o);
-    const literal = oType === "value" || oType === "url";
+    const literal = LITERAL_TYPES.has(oType);
     if (literal && !settings.showValues) return;
     if (hiddenTypes.has(sType) || hiddenTypes.has(oType)) return;
     const sId = String(t.s);
@@ -240,7 +302,7 @@ function renderGraph() {
     from: e.from,
     to: e.to,
     label: settings.edgeLabels ? e.triple.p : undefined,
-    title: `${e.triple.p}${e.triple.derived ? " (derived)" : ""}`,
+    title: edgeTitle(e.triple) as unknown as string,
     arrows: "to",
     dashes: e.triple.derived,
     width: e.triple.severity === "warning" ? 2.5 : 1,
@@ -263,9 +325,13 @@ function renderGraph() {
   network?.destroy();
   network = new Network(container, { nodes: new DataSet(visNodes), edges: new DataSet(visEdges) }, options);
   network.once("stabilizationIterationsDone", () => network?.fit({ animation: true }));
-  network.on("click", (params: { nodes: string[] }) => {
+  network.on("click", (params: { nodes: string[]; edges: string[] }) => {
     const id = params.nodes[0];
-    if (!id) return;
+    if (!id) {
+      const edge = params.edges.length === 1 ? edges.find((e) => e.id === params.edges[0]) : undefined;
+      if (edge) showTriple(edge.triple);
+      return;
+    }
     const node = nodes.get(id)!;
     const target = node.subject ?? id;
     if (settings.clickRecentres && typeof node.entity !== "number" && node.type !== "url") setFocus(target);
@@ -287,7 +353,7 @@ function renderTable() {
       const x = a[tableSort.key], y = b[tableSort.key];
       return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))) * tableSort.dir;
     });
-  const cols: [keyof Triple, string][] = [["s", "Subject"], ["p", "Relation"], ["o", "Object"], ["domain", "Domain"]];
+  const cols: [keyof Triple, string][] = [["s", "Subject"], ["p", "Relation"], ["o", "Object"], ["domain", "Domain"], ["derived", ""]];
   const head = el("tr", {}, ...cols.map(([key, label]) => {
     const th = el("th", {}, label + (tableSort.key === key ? (tableSort.dir === 1 ? " ▲" : " ▼") : ""));
     th.onclick = () => {
@@ -303,8 +369,12 @@ function renderTable() {
     return el("td", {}, c, typeof v === "number" ? v.toLocaleString() : v);
   };
   const body = el("tbody", {}, ...rows.map((t) => {
+    const badge = kindBadge(t.derived);
+    if (t.derived) badge.title = [DERIVED_HINT, ...rulesFor(t.pred).map((r) => `How: ${r}`)].join("\n");
+    const why = el("button", { type: "button", className: "why", textContent: t.derived ? "why?" : "fact", title: "Show this connection in the side panel" });
+    why.onclick = (e) => { e.stopPropagation(); showTriple(t); };
     const tr = el("tr", { className: t.severity === "warning" ? "warning" : "" },
-      cell(t.s), el("td", { className: t.derived ? "derived" : "" }, t.p), cell(t.o), el("td", {}, domainLabel(t.domain)));
+      cell(t.s), el("td", { className: t.derived ? "derived" : "" }, t.p, " ", badge), cell(t.o), el("td", {}, domainLabel(t.domain)), el("td", {}, why));
     tr.onclick = () => setFocus(String(t.s), false);
     return tr;
   }));
@@ -442,37 +512,41 @@ async function renderExplain() {
   parts.push(actions);
 
   if (ex.conclusions.length) {
-    parts.push(el("h3", { className: "ex-section" }, "Conclusions"));
+    parts.push(el("h3", { className: "ex-section", title: DERIVED_HINT }, "Derived ", kindBadge(true)));
     const bySeverity = [...ex.conclusions].sort((a, b) => Number(b.severity === "warning") - Number(a.severity === "warning"));
     for (const c of bySeverity) {
       const details = el("details", { open: c.severity === "warning" || session().role === "risk_officer" },
-        el("summary", {}, "How was this derived?"),
-        el("ul", { className: "lines" }, ...c.lines.slice(1).map((l) => {
-          const li = el("li", { className: l.kind, textContent: l.text });
-          li.style.setProperty("--depth", String(l.depth - 1));
-          return li;
-        })));
+        el("summary", {}, "How and why"), howWhyKey(), linesList(c.lines, 1));
       if (c.proof) {
         details.append(el("details", {}, el("summary", {}, "Technical detail"), el("pre", { className: "raw", textContent: c.proof })));
       }
-      parts.push(el("div", { className: `card ${c.severity}` }, el("div", { className: "headline", textContent: c.text }), details));
+      parts.push(el("div", { className: `card derived ${c.severity}` }, el("div", { className: "headline", textContent: c.text }), details));
     }
   }
 
   if (ex.facts.length) {
-    parts.push(el("h3", { className: "ex-section" }, "Facts"),
+    parts.push(el("h3", { className: "ex-section", title: STATED_HINT }, "Stated ", kindBadge(false)),
       el("ul", { className: "facts" }, ...ex.facts.map((f) => el("li", { textContent: f }))));
   }
 
-  const neighbours = new Set<string>();
+  // Derived connections that point at this entity (the ones above start from it).
+  const incoming = scopedTriples().filter((t) => t.derived && t.o === ex.id);
+  if (incoming.length) {
+    parts.push(el("h3", { className: "ex-section", title: DERIVED_HINT }, "Derived connections to it ", kindBadge(true)),
+      ...incoming.map((t) => whyDetails(t)));
+  }
+
+  // Neighbours, with whether every connection to them is derived.
+  const neighbours = new Map<string, boolean>();
   for (const t of scopedTriples()) {
-    if (t.s === ex.id && typeof t.o !== "number") neighbours.add(String(t.o));
-    if (t.o === ex.id) neighbours.add(String(t.s));
+    const n = t.s === ex.id && typeof t.o !== "number" ? String(t.o) : t.o === ex.id ? String(t.s) : null;
+    if (n !== null && !LITERAL_TYPES.has(typeOf(n))) neighbours.set(n, (neighbours.get(n) ?? true) && t.derived);
   }
   if (neighbours.size) {
     parts.push(el("h3", { className: "ex-section" }, "Connected"),
-      el("div", { className: "neighbours" }, ...[...neighbours].map((n) => {
-        const b = el("button", { type: "button", textContent: shortLabel(n) });
+      el("div", { className: "neighbours" }, ...[...neighbours].map(([n, derivedOnly]) => {
+        const b = el("button", { type: "button", textContent: shortLabel(n), className: derivedOnly ? "derived" : "",
+          title: derivedOnly ? `Connected only through derived facts. ${DERIVED_HINT}` : "Connected through stated facts" });
         b.style.borderColor = colorOf(typeOf(n));
         b.onclick = () => setFocus(n);
         return b;
@@ -481,11 +555,63 @@ async function renderExplain() {
   panel.replaceChildren(...parts);
 }
 
+/** A derived connection whose why loads when opened. */
+function whyDetails(t: Triple): HTMLElement {
+  const details = el("details", { className: "card derived" },
+    el("summary", {}, `${t.s} ${t.p} ${shortLabel(String(t.o))}`));
+  let loaded = false;
+  details.addEventListener("toggle", async () => {
+    if (!details.open || loaded) return;
+    loaded = true;
+    details.append(await whyBody(t));
+  });
+  return details;
+}
+
+/** How (rule) and why (proof) for one connection, from /api/explain-goal. */
+async function whyBody(t: Triple): Promise<HTMLElement> {
+  const goal = goalOf(t);
+  if (!goal) return el("p", { className: "muted" }, t.derived ? "This connection cannot be explained here." : STATED_HINT);
+  try {
+    const ex = await api<GoalExplanation>(`/api/explain-goal?expression=${encodeURIComponent(goal)}&max=1`);
+    const a = ex.answers?.[0];
+    if (!a) return el("p", { className: "muted" }, "This connection no longer holds.");
+    const box = el("div", {}, el("div", { className: "headline", textContent: a.text }));
+    if (!a.derived) { box.append(el("p", { className: "muted" }, STATED_HINT)); return box; }
+    box.append(howWhyKey(), linesList(a.lines ?? [], 1));
+    if (a.proof) box.append(el("details", {}, el("summary", {}, "Technical detail"), el("pre", { className: "raw", textContent: a.proof })));
+    return box;
+  } catch (e) {
+    return el("p", { className: "muted" }, (e as Error).message);
+  }
+}
+
+/** The side panel for one clicked connection. */
+async function showTriple(t: Triple) {
+  const panel = $("explain");
+  const back = el("button", { type: "button", textContent: `← ${settings.focus ?? "overview"}` });
+  back.onclick = () => { selected = null; renderExplain(); };
+  const focusS = el("button", { type: "button", textContent: `Centre on ${t.s}` });
+  focusS.onclick = () => setFocus(String(t.s));
+  const actions = el("div", { className: "ex-actions" }, back, focusS);
+  if (typeof t.o !== "number" && !LITERAL_TYPES.has(typeOf(t.o))) {
+    const focusO = el("button", { type: "button", textContent: `Centre on ${t.o}` });
+    focusO.onclick = () => setFocus(String(t.o));
+    actions.append(focusO);
+  }
+  const head = el("div", { className: "ex-head" }, el("h2", { textContent: t.p }), kindBadge(t.derived));
+  const how = t.derived ? rulesFor(t.pred) : [];
+  panel.replaceChildren(head, actions,
+    ...(how.length ? [el("h3", { className: "ex-section" }, "How"), ...how.map((r) => el("div", { className: "card rule" }, r))] : []),
+    el("h3", { className: "ex-section" }, t.derived ? "Why" : "Fact"),
+    el("div", { className: `card ${t.derived ? "derived" : ""}` }, await whyBody(t)));
+}
+
 function overview(): HTMLElement {
   const wrap = el("div");
   wrap.append(el("h2", { textContent: "How Liquidity House reasons" }),
     el("p", { className: "muted" }, "Select or search anything to see what is known about it and, step by step, how each figure was worked out. Explanations come from the same rules and data as the calculations, so they always match the result."));
-  wrap.append(el("h3", { className: "ex-section" }, "Rules"),
+  wrap.append(el("h3", { className: "ex-section", title: "Every derived fact comes from one of these rules" }, "Rules: how derived facts are made"),
     ...snap.rules.map((r) => el("div", { className: "card" }, el("div", { textContent: r.text }), can("technical") ? el("div", { className: "muted" }, r.predicate) : "")));
   const warnings = snap.triples.filter((t) => t.severity === "warning");
   if (warnings.length) {
