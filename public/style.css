@@ -241,13 +241,38 @@ button.run { font-size: 11.5px; padding: 1px 8px; }
 .other-rules { margin-top: 8px; }
 details.card > summary { cursor: pointer; }
 
+/* The explanations panel folds to a strip (a row when it sits below the graph) */
+.panel-bar { display: flex; align-items: center; gap: 8px; margin: -4px 0 8px; }
+.panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.panel-toggle { padding: 0 8px; line-height: 22px; font-size: 16px; }
+.layout.panel-folded { grid-template-columns: 280px minmax(0, 1fr) 40px; }
+.layout.panel-folded .panel { padding: 10px 4px; overflow: hidden; }
+.layout.panel-folded #explain { display: none; }
+.layout.panel-folded .panel-bar { flex-direction: column; margin: 0; }
+.layout.panel-folded .panel-title { writing-mode: vertical-rl; }
+.layout.panel-folded .panel-toggle { transform: rotate(180deg); }
+tr.selected td { background: var(--surface-2); }
+tr.clickable { cursor: pointer; }
+button.link.strong { font-weight: 600; }
+.costs { color: var(--warn); }
+.relation-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.relation-chips button { font-size: 12px; padding: 1px 8px; }
+.facts li.clickable { cursor: pointer; }
+.facts li.clickable:hover { color: var(--accent); }
+
 @media (max-width: 1100px) {
   .layout { grid-template-columns: 250px minmax(0, 1fr); }
   .panel { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--border); max-height: 45vh; }
+  .layout.panel-folded { grid-template-columns: 250px minmax(0, 1fr); }
+  .layout.panel-folded .panel { max-height: none; padding: 6px 16px; }
+  .layout.panel-folded .panel-bar { flex-direction: row; }
+  .layout.panel-folded .panel-title { writing-mode: horizontal-tb; }
+  .panel-toggle { transform: rotate(90deg); }
+  .layout.panel-folded .panel-toggle { transform: rotate(-90deg); }
 }
 @media (max-width: 720px) {
   html, body { height: auto; }
-  .layout { flex: none; grid-template-columns: 1fr; grid-auto-rows: auto; }
+  .layout, .layout.panel-folded { flex: none; grid-template-columns: 1fr; grid-auto-rows: auto; }
   .sidebar, .panel { border-right: 0; max-height: none; overflow: visible; }
   .stage { height: 60vh; }
   .topbar { padding: 10px 16px; }

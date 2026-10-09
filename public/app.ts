@@ -616,7 +616,20 @@ function renderCrumbs() {
   $<HTMLInputElement>("focus-input").value = settings.focus ?? "";
 }
 
-// --- Explanation panel ---
+// --- Explanation panel: foldable; opening a detail unfolds it, refocusing does not ---
+let panelFolded = store.get<boolean>("kbx:panelFolded") ?? false;
+
+function setPanelFolded(folded: boolean) {
+  panelFolded = folded;
+  store.set("kbx:panelFolded", folded);
+  document.querySelector(".layout")!.classList.toggle("panel-folded", folded);
+  const b = $("panel-toggle");
+  b.setAttribute("aria-expanded", String(!folded));
+  b.title = folded ? "Show explanations" : "Fold explanations";
+  requestAnimationFrame(() => network?.redraw());
+}
+const unfoldPanel = () => { if (panelFolded) setPanelFolded(false); };
+
 async function renderExplain() {
   const target = selected ?? settings.focus;
   const panel = $("explain");
@@ -723,6 +736,7 @@ async function whyBody(t: Triple): Promise<HTMLElement> {
 
 /** The side panel for one clicked connection. */
 async function showTriple(t: Triple) {
+  unfoldPanel();
   const panel = $("explain");
   const back = el("button", { type: "button", textContent: `← ${settings.focus ?? "overview"}` });
   back.onclick = () => { selected = null; renderExplain(); };
@@ -941,11 +955,13 @@ function auditRelations(a: Audit): HTMLElement {
     el("div", { className: "table-wrap" }, table));
 }
 
+let selectedRelation: string | null = null;
+
 function relationRow(r: AuditRelation): HTMLElement {
   const clauses = (r.clauses ?? []).map((c) => el("span", { className: c.facts ? "clause-stat" : "clause-stat dead", title: `${c.facts} facts, ${c.only} only by this clause` },
     `#${c.clause}: ${c.facts} facts · ${c.symbols} sym`));
   const saves = r.saving ?? null;
-  return el("tr", {},
+  const tr = el("tr", { className: `clickable ${r.id === selectedRelation ? "selected" : ""}`, title: "Show this relation in the explanations panel" },
     el("td", {}, r.label, el("span", { className: "muted" }, ` ${r.id}/${r.arity}`)),
     el("td", {}, domainLabel(r.domain)),
     el("td", {}, r.kind === "derived" ? kindBadge(true) : r.kind === "generated" ? el("span", { className: "kind-badge stated", textContent: "generated" }) : kindBadge(false)),
@@ -955,6 +971,90 @@ function relationRow(r: AuditRelation): HTMLElement {
     el("td", { className: `num ${saves !== null && saves < 0 ? "costs" : ""}`, title: saves !== null && saves < 0 ? "Costs more symbols than its facts would: kept for what it explains and for facts to come" : "" },
       saves === null ? "" : String(saves)),
     el("td", {}, ...clauses));
+  tr.onclick = () => {
+    selectedRelation = r.id;
+    tr.parentElement?.querySelectorAll("tr.selected").forEach((x) => x.classList.remove("selected"));
+    tr.classList.add("selected");
+    showRelation(r.id);
+  };
+  return tr;
+}
+
+/** The side panel for one relation of the audit: its cost, its rule, what it reads and is read by, candidates, facts. */
+function showRelation(id: string) {
+  const a = audit;
+  const r = a?.relations.find((x) => x.id === id);
+  if (!a || !r) return;
+  unfoldPanel();
+  selectedRelation = id;
+  const panel = $("explain");
+  const back = el("button", { type: "button", textContent: `← ${settings.focus ?? "overview"}` });
+  back.onclick = () => { selectedRelation = null; selected = null; renderExplain(); };
+  const badge = r.kind === "derived" ? kindBadge(true) : r.kind === "generated" ? el("span", { className: "kind-badge stated", textContent: "generated" }) : kindBadge(false);
+  const parts: (HTMLElement | string)[] = [
+    el("div", { className: "ex-head" }, el("h2", { textContent: r.label }), badge),
+    el("div", { className: "ex-actions" }, back),
+    el("p", { className: "muted" }, `${r.id}/${r.arity} · ${domainLabel(r.domain)} · ${r.facts} facts · ${r.symbols} symbols${r.kind === "derived" ? " if they were stated" : ""}`),
+  ];
+  if (r.kind === "derived") {
+    const saves = r.saving ?? 0;
+    parts.push(el("p", { className: saves < 0 ? "costs" : "" }, saves < 0
+      ? `Its rule costs ${r.rule_symbols} symbols, ${-saves} more than its facts would: kept for what it explains and for facts to come.`
+      : `Its rule costs ${r.rule_symbols} symbols and saves ${saves}.`));
+    parts.push(el("h3", { className: "ex-section" }, "How it is derived"),
+      ...rulesFor(r.id).map((rule) => {
+        const stat = r.clauses?.find((c) => c.clause === rule.clause);
+        return el("div", { className: "card rule" }, el("div", {}, slotted(rule)),
+          stat ? el("div", { className: stat.facts ? "muted" : "costs" },
+            stat.facts ? `Clause ${rule.clause}: ${stat.facts} facts (${stat.only} only by this clause) · ${stat.symbols} symbols` : `Clause ${rule.clause} derives nothing yet · ${stat.symbols} symbols`) : "",
+          ruleCode(rule));
+      }));
+  } else if (r.kind === "generated") {
+    parts.push(el("p", { className: "muted" }, "Generated from what the repository already records, so its facts cost nothing to write."));
+  }
+
+  const chipLabel = (x: string) => {
+    const label = a.relations.find((y) => y.id === x)?.label ?? x;
+    return label.replace(/ /g, "_") === x ? label : `${label} (${x})`;
+  };
+  const chips = (ids: string[]) => el("div", { className: "relation-chips" }, ...ids.map((x) => {
+    const b = el("button", { type: "button", textContent: chipLabel(x), title: `Show ${x}` });
+    b.onclick = () => showRelation(x);
+    return b;
+  }));
+  const reads = (r.reads ?? []).filter((x) => a.relations.some((y) => y.id === x));
+  const readBy = a.relations.filter((x) => x.reads?.includes(r.id) && x.id !== r.id).map((x) => x.id);
+  if (reads.length) parts.push(el("h3", { className: "ex-section" }, "Reads"), chips(reads));
+  if (readBy.length) parts.push(el("h3", { className: "ex-section" }, "Read by"), chips(readBy));
+
+  const kinds = new Map(a.kinds.map((k) => [k.id, k.label]));
+  const cands = a.candidates.filter((c) => c.relation === r.id || c.body.includes(r.id));
+  if (cands.length) {
+    parts.push(el("h3", { className: "ex-section" }, "Compression candidates"),
+      ...cands.map((c) => {
+        const b = el("button", { type: "button", className: "link", textContent: `${kinds.get(c.kind) ?? c.kind}: ${c.relation} — ${c.saving > 0 ? `saves ${c.saving}` : c.saving === 0 ? "saves nothing" : `costs ${-c.saving}`}` });
+        b.onclick = () => {
+          auditTab = "compression";
+          if (c.saving <= 0) nearMisses = true;
+          renderAudit().then(() => document.getElementById(`cand-${c.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+        };
+        return el("div", {}, b);
+      }));
+  }
+
+  const facts = snap.triples.filter((t) => t.pred === r.id);
+  const shown = facts.slice(0, 60);
+  if (facts.length) {
+    parts.push(el("h3", { className: "ex-section" }, r.kind === "derived" ? "Derived " : "Stated ", kindBadge(r.kind === "derived"), ` ${facts.length}`),
+      el("ul", { className: "facts" }, ...shown.map((t) => {
+        const li = el("li", { className: "clickable", title: t.derived ? viaText(t.pred, t.via) : "Show where it is written" },
+          `${t.s} → ${typeof t.o === "number" ? t.o.toLocaleString() : shortLabel(String(t.o))}`);
+        li.onclick = () => showTriple(t);
+        return li;
+      })),
+      facts.length > shown.length ? el("p", { className: "muted" }, `… and ${facts.length - shown.length} more`) : "");
+  }
+  panel.replaceChildren(...parts);
 }
 
 /** Compression candidates, and the optimiser that picks the best set under constraints. */
@@ -970,12 +1070,20 @@ function auditCompression(a: Audit): HTMLElement {
     ...(cards.length ? cards : [el("p", { className: "muted" }, "No candidate saves symbols: nothing here is said twice in a way these templates can see.")]));
 }
 
+/** A relation name that opens the relation in the panel, when the audit knows it. */
+function relationLink(id: string): HTMLElement {
+  if (!audit?.relations.some((r) => r.id === id)) return el("strong", {}, id);
+  const b = el("button", { type: "button", className: "link strong", textContent: id, title: "Show this relation in the explanations panel" });
+  b.onclick = () => showRelation(id);
+  return b;
+}
+
 function candidateCard(c: Candidate, kind?: { label: string; description: string }): HTMLElement {
   const covered = c.covers.reduce((n, x) => n + x.symbols, 0);
   const card = el("div", { className: `card candidate ${c.saving > 0 ? "" : "near"}`, id: `cand-${c.id}` },
     el("div", { className: "cand-head" },
       el("span", { className: "kind-chip", title: kind?.description ?? "" }, kind?.label ?? c.kind),
-      el("strong", {}, c.relation),
+      relationLink(c.relation),
       el("span", { className: c.saving > 0 ? "saves" : "muted" }, c.saving > 0 ? `saves ${c.saving} symbols` : c.saving === 0 ? "saves nothing" : `costs ${-c.saving}`)),
     el("div", { className: "muted" }, `${kind?.description ?? ""}. Replaces ${c.covers.length} item${c.covers.length === 1 ? "" : "s"} (${covered} symbols) and adds ${c.cost}.`));
   for (const clause of c.clauses) card.append(prolog(clause));
@@ -1210,6 +1318,8 @@ async function main() {
     history.pop();
     setFocus(history.at(-1)!, false);
   };
+  setPanelFolded(panelFolded);
+  $("panel-toggle").onclick = () => setPanelFolded(!panelFolded);
   $("types-reset").onclick = () => { settings.colors = {}; settings.shapes = {}; settings.hiddenTypes = []; update(); };
   $("table-filter").addEventListener("input", renderTable);
   $("console-run").onclick = runConsole;
