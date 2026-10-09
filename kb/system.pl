@@ -134,7 +134,7 @@ purpose(focus, 'to re-centre on an entity by clicking or searching, go back thro
 purpose(scope, 'to toggle domains, single relations, derived facts, and value, link and description leaves').
 purpose(entity_types, 'to show or hide each type of entity and change its colour and shape').
 purpose(per_user_settings, 'to remember settings for each user and start newly visible domains ticked').
-purpose(knowledge_audit, 'to count what is stated, generated and derived in symbols, list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints').
+purpose(knowledge_audit, 'to count what is stated, generated and derived in symbols, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints').
 purpose(shareable_state, 'to keep the user, view, focus and depth in the URL, so a view can be shared').
 
 % --- How we work on the knowledge base ---

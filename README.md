@@ -154,7 +154,7 @@ Server 'mcp_server' is registered for Claude Code in .mcp.json.
 - **Entity types**: Show or hide each type of entity and change its colour and shape.
 - **Per-user settings**: Remember settings for each user and start newly visible domains ticked.
 - **Shareable state**: Keep the user, view, focus and depth in the URL, so a view can be shared.
-- **Knowledge audit**: Count what is stated, generated and derived in symbols, list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints.
+- **Knowledge audit**: Count what is stated, generated and derived in symbols, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints.
 
 ## Working on the knowledge base
 
