@@ -30,6 +30,7 @@ opaque(G) :-
     Opaque == true.
 
 builtin_goal(_ is _).
+builtin_goal(_ = _).
 builtin_goal(format(atom(_), _, _)).
 builtin_goal(G) :- compound(G), functor(G, Op, 2), op_word(Op, _).
 
@@ -48,6 +49,9 @@ name_value(G) :- compound(G), G =.. [P, _, V], var(V), !,
 name_value(_).
 
 name_body((A, B), C) :- !, name_body(A, C), name_body(B, C).
+% Out = Out0 passes a name on: the fresh variable takes its partner's name.
+name_body(L = R, _) :- !,
+    ( var(R), nonvar(L) -> R = L ; var(L), nonvar(R) -> L = R ; true ).
 name_body(G, _) :- builtin_goal(G), !.
 name_body(risk_weight(W, V), _) :- atom(W), var(V), !,
     noun_of(W, N), V = n(N, weight).
@@ -296,6 +300,7 @@ proof_lines(rule(G, Body, Named, Sub), D, [line(D, K, T), line(D1, rule, R)|L]) 
 
 body_lines((A, B), (NA, NB), (PA, PB), D, L) :- !,
     body_lines(A, NA, PA, D, LA), body_lines(B, NB, PB, D, LB), append(LA, LB, L).
+body_lines(_ = _, _, builtin(_), _, []) :- !.
 body_lines(G, NG, builtin(_), D, [line(D, calc, T)]) :- !, calc_text(G, NG, T).
 body_lines(_, _, P, D, L) :- proof_lines(P, D, L).
 

@@ -6,7 +6,14 @@
 % wallet_exposure are humanised to "wallet exposure" by default).
 
 % noun(Concept, Phrase) — what a concept, attribute, type, role or user is called.
-% For a predicate P(S, O), it names O: noun(repo, organisation).
+% For a predicate P(S, O), it names O: noun(repo, team).
+noun(member_of, team).
+noun(belongs_to, organisation).
+noun(address, 'email address').
+noun(product_domain, domain).
+noun(email_role, role).
+noun(email_provider, provider).
+noun(google_workspace, 'Google Workspace').
 noun(ggr_90d, '90-day gross gaming revenue').
 noun(net_deposits, 'net player deposits').
 noun(dau, 'daily active user count').
@@ -20,7 +27,7 @@ noun(workspace, 'Slack workspace').
 noun(channel, 'Slack channel').
 noun(identifier, 'ID').
 noun(jira_project, 'Jira project').
-noun(repo, organisation).
+noun(repo, team).
 noun(sibling_repo, 'other repository').
 noun(github_account, 'GitHub account').
 noun(slack_channel, 'Slack channel').
@@ -31,6 +38,7 @@ noun(jira_board, 'Jira board').
 noun(deployed_on, cluster).
 noun(personal_email, 'your personal email').
 noun(work_email, 'your work email').
+noun(team_email, 'your team email').
 noun(admin, administrator).
 noun(dominic, 'Dominic, Head of Risk').
 noun(adam, 'Adam, Software Engineer').
@@ -41,6 +49,12 @@ plural(net_deposits).
 % verb(Relation, Phrase) — relations read as "Subject Verb Object".
 % Predicates without a verb are attributes: "the <noun> of Subject is Value".
 verb(onboarding, includes).
+verb(part_of, 'is part of').
+verb(builds, builds).
+verb(member_of, 'is a member of').
+verb(belongs_to, 'belongs to').
+verb(mailbox, provides).
+verb(managed_by, 'is managed by').
 verb(invites, 'invites you to').
 verb(works_as, 'works as').
 verb(reachable_in, 'is reachable in').
@@ -76,6 +90,7 @@ bare(identifier).
 bare(account).
 bare(domain).
 bare(email).
+bare(address).
 bare(concept).
 
 % flag(Attribute, Value, Severity) — values that deserve attention.
