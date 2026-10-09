@@ -21,6 +21,33 @@ export interface Line { depth: number; kind: string; text: string }
 export interface Conclusion { predicate: string; severity: string; goal: string; text: string; lines: Line[]; proof: string }
 export interface Explanation { id: string; type: string; phrase: string; facts: string[]; conclusions: Conclusion[] }
 
+// Agent requests (used by the MCP server). Answers that cannot be given carry
+// a `problem` plus hints (suggestions, allowed domains, explainable predicates).
+export interface Problem { problem?: string; [hint: string]: unknown }
+export interface Overview extends Problem {
+  role: string;
+  domains: { id: string; label: string; relations: string[]; entities: Record<string, string[]> }[];
+  services: string[];
+  rules: string[];
+}
+export interface ContextTriple { subject: string | number; predicate: string; object: string | number; relation: string; derived: boolean; hops: number }
+export interface Context extends Problem {
+  entity: string; type: string; depth: number; role: string; total: number; truncated: boolean;
+  triples: ContextTriple[]; entities: Record<string, string>;
+}
+export interface Requirement { item: string; type: string; action: string; satisfied: boolean; link: string | null; ask: string[]; because: string[] }
+export interface Verification extends Problem {
+  who: string; service: string; known: boolean; ready: boolean; summary: string; missing: string[]; requirements: Requirement[];
+}
+export interface GoalExplanation extends Problem {
+  expression: string;
+  holds?: boolean;
+  answers_total?: number;
+  answers?: { bindings: Record<string, unknown>; text: string; severity: string; explanation: string; proof: string }[];
+  rule?: string;
+  descriptions?: string[];
+}
+
 export interface KbFile { name: string; lines: number; sha: string; modified: number }
 export interface KbPayload { version: string; loadedAt: number; files: KbFile[]; program: string }
 
@@ -78,6 +105,23 @@ export class KbEngine {
 
   explain(entity: string | number): Promise<Explanation> {
     return this.api<Explanation>(`explain(${literal(entity)})`);
+  }
+
+  overview(domain: string, role: string): Promise<Overview> {
+    return this.api<Overview>(`overview(${literal(domain)}, ${literal(role)})`);
+  }
+
+  context(entity: string, depth: number, role: string, maxTriples: number): Promise<Context> {
+    return this.api<Context>(`context(${literal(entity)}, ${depth}, ${literal(role)}, ${maxTriples})`);
+  }
+
+  verify(who: string, service: string, done: string[]): Promise<Verification> {
+    return this.api<Verification>(`verify(${literal(who)}, ${literal(service)}, [${done.map(literal).join(", ")}])`);
+  }
+
+  /** `expression` is parsed by Prolog (read_term_from_atom), never spliced into the query. */
+  explainGoal(expression: string, maxAnswers: number): Promise<GoalExplanation> {
+    return this.api<GoalExplanation>(`explain_goal(${literal(expression)}, ${maxAnswers})`);
   }
 
   /** Free-form goal for the developer console; returns toplevel-style lines. */

@@ -32,6 +32,8 @@ kb_predicate(email_domain, 2, onboarding).
 kb_predicate(signs_in_with, 2, onboarding).
 kb_predicate(jira_site, 2, onboarding).
 kb_predicate(jira_board, 2, onboarding).
+kb_predicate(depends_on, 2, platform).
+kb_predicate(needs_setup, 2, platform).
 kb_predicate(dashboard, 2, platform).
 kb_predicate(deployed_on, 2, platform).
 kb_predicate(cluster_domain, 2, platform).
@@ -53,6 +55,7 @@ derived_predicate(url, 2, onboarding).
 derived_predicate(sibling_repo, 2, onboarding).
 derived_predicate(belongs_to, 2, onboarding).
 derived_predicate(email_address, 2, onboarding).
+derived_predicate(requires, 2, onboarding).
 
 % --- Entity types (first matching rule wins) ---
 entity_type(E, value) :- number(E), !.
@@ -72,10 +75,12 @@ entity_type(E, jira_project) :- catch(jira_site(E, _), _, fail), !.
 entity_type(E, dashboard) :- catch(dashboard(_, E), _, fail), !.
 entity_type(E, cluster) :- catch(cluster_domain(E, _), _, fail), !.
 entity_type(E, operator) :- catch(operator(E, _), _, fail), !.
+entity_type(E, service) :- catch(service(E), _, fail), !.
 entity_type(E, repository) :- catch(repo(E, _), _, fail), !.
+entity_type(E, env_setup) :- catch(needs_setup(_, E), _, fail), !.
 entity_type(E, organisation) :- catch(github_account(E, _), _, fail), !.
 entity_type(E, weight) :- catch(risk_weight(E, _), _, fail), !.
-entity_type(E, service) :- catch(data_source(_, E), _, fail), !.
+entity_type(E, data_source) :- catch(data_source(_, E), _, fail), !.
 entity_type(E, dataset) :- catch((riskx(E, _) ; riskx(_, E)), _, fail), !.
 entity_type(E, status) :- catch((operator(_, E) ; exposure_warning(_, E)), _, fail), !.
 entity_type(E, step) :- catch(onboarding(E), _, fail), !.
@@ -87,7 +92,9 @@ type_style(repository, '#4c6ef5', box).
 type_style(organisation, '#7048e8', hexagon).
 type_style(team, '#845ef7', hexagon).
 type_style(product, '#f03e3e', star).
-type_style(service, '#1098ad', diamond).
+type_style(service, '#3bc9db', box).
+type_style(data_source, '#1098ad', diamond).
+type_style(env_setup, '#e67700', triangle).
 type_style(dataset, '#2f9e44', database).
 type_style(weight, '#f59f00', triangle).
 type_style(status, '#868e96', ellipse).

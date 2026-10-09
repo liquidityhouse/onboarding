@@ -32,6 +32,7 @@ github_account(liquidity_house, liquidityhouse).
 repo(onboarding, liquidity_house).
 repo(injectx, liquidity_house).
 repo(riskx, liquidity_house).
+repo(k8s, liquidity_house).
 
 % --- Slack ---
 % First login is at the workspace link, through an invitation to your personal email.
@@ -61,6 +62,22 @@ signs_in_with('GOAT', work_email).
 jira_site('GOAT', 'goat-gaming').
 jira_board('GOAT', 2).
 
+% --- Services and what working on them needs ---
+% Working on a service means its own repository plus everything it requires
+% (requires/2 below). riskx's Metabase access follows from data_source/2.
+service(injectx).
+service(riskx).
+service(payex).
+
+depends_on(injectx, onboarding).
+depends_on(injectx, k8s).
+depends_on(riskx, onboarding).
+
+needs_setup(injectx, docker_compose).
+needs_setup(injectx, bun_runtime).
+needs_setup(injectx, aws_dev_role).
+needs_setup(riskx, docker_compose).
+
 % --- RiskX platform ---
 dashboard(riskx, riskx_dashboard).
 deployed_on(riskx, eu_central_1).
@@ -78,6 +95,7 @@ riskx(agregate, metadata).
 :- dynamic(sibling_repo/2).
 :- dynamic(belongs_to/2).
 :- dynamic(email_address/2).
+:- dynamic(requires/2).
 
 % Members of a team also belong to the organisation the team is part of.
 belongs_to(Person, Org) :-
@@ -85,6 +103,18 @@ belongs_to(Person, Org) :-
 belongs_to(Person, Org) :-
     member_of(Person, Team),
     part_of(Team, Org).
+
+% What a service requires: the repositories it depends on (and everything
+% they require in turn), its environment setups, and its data sources.
+requires(Service, Repo) :-
+    depends_on(Service, Repo).
+requires(Service, Item) :-
+    depends_on(Service, Dependency),
+    requires(Dependency, Item).
+requires(Service, Setup) :-
+    needs_setup(Service, Setup).
+requires(Service, Source) :-
+    data_source(Service, Source).
 
 % Every organisation you belong to gives you {person}@{its email domain}.
 email_address(Person, Address) :-

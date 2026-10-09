@@ -7,52 +7,15 @@
 //
 // Run: node server.ts   (Node >= 23.6; PORT env var, default 8765)
 
-import { createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { stripTypeScriptTypes } from "node:module";
 import { extname, join, normalize, resolve } from "node:path";
+import { loadKb } from "./lib/kb-source.ts";
 
 const ROOT = import.meta.dirname;
 const PUBLIC = join(ROOT, "public");
-const MANIFEST = join(ROOT, "kb", "manifest.json");
 const PORT = Number(process.env.PORT ?? 8765);
-
-interface KbFile {
-  name: string;
-  lines: number;
-  sha: string;
-  modified: number;
-}
-
-interface Kb {
-  version: string;
-  loadedAt: number;
-  files: KbFile[];
-  program: string;
-}
-
-const sha = (text: string, n: number) => createHash("sha1").update(text).digest("hex").slice(0, n);
-
-async function loadKb(): Promise<Kb> {
-  const { sources } = JSON.parse(await readFile(MANIFEST, "utf8")) as { sources: string[] };
-  const files: KbFile[] = [];
-  const parts: string[] = [];
-  for (const rel of sources) {
-    const path = join(ROOT, rel);
-    let text = await readFile(path, "utf8");
-    if (!text.endsWith("\n")) text += "\n";
-    files.push({
-      name: rel,
-      lines: text.split("\n").length - 1,
-      sha: sha(text, 10),
-      modified: Math.floor((await stat(path)).mtimeMs / 1000),
-    });
-    parts.push(`% ===== ${rel} =====\n${text}`);
-  }
-  const program = parts.join("\n");
-  return { version: sha(program, 12), loadedAt: Math.floor(Date.now() / 1000), files, program };
-}
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",

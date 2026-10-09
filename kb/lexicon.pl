@@ -7,6 +7,11 @@
 
 % noun(Concept, Phrase) — what a concept, attribute, type, role or user is called.
 % For a predicate P(S, O), it names O: noun(repo, team).
+noun(requires, requirement).
+noun(depends_on, dependency).
+noun(needs_setup, 'environment setup').
+noun(env_setup, 'environment setup').
+noun(own_repository, 'the service''s own repository').
 noun(member_of, team).
 noun(belongs_to, organisation).
 noun(address, 'email address').
@@ -69,6 +74,9 @@ verb(data_source, 'pulls data from').
 verb(monitored_by, 'is monitored by').
 verb(operator, 'has status').
 verb(slack_channel, contains).
+verb(requires, requires).
+verb(depends_on, 'depends on').
+verb(needs_setup, needs).
 
 % arg_verb(Relation, ArgN, Phrase) — how extra arguments of n-ary facts attach.
 :- dynamic(arg_verb/3).
@@ -113,6 +121,13 @@ op_precedence(-, 1).
 op_precedence(*, 2).
 op_precedence(/, 2).
 
+% action(Type, Verb) — what you do to satisfy a requirement of that type.
+action(service, clone).
+action(repository, clone).
+action(env_setup, 'set up').
+action(data_source, 'get access to').
+action(dashboard, 'get access to').
+
 % Connectives used when joining phrases.
 connective(and, and).
 connective(when, when).
@@ -120,3 +135,7 @@ connective(calculated, 'Calculated:').
 connective(checked, 'Checked:').
 connective(built, 'Built:').
 connective(from, from).
+connective(ready, 'has everything needed to work on').
+connective(still_needs, 'still needs to').
+connective(before_working_on, 'before working on').
+connective(unrecorded, 'no requirements are recorded for').

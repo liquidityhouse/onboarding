@@ -9,12 +9,18 @@
     "start": "node server.ts",
     "dev": "node --watch server.ts",
     "typecheck": "tsc --noEmit",
-    "export": "node scripts/export-code.ts"
+    "export": "node scripts/export-code.ts",
+    "mcp": "node mcp-server.ts",
+    "mcp:check": "node scripts/mcp-check.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.1",
-    "trealla": "^0.30.1",
     "typescript": "5.9",
     "vis-network": "^9.1.9"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.1",
+    "zod": "4.6.5",
+    "trealla": "^0.30.1"
   }
 }

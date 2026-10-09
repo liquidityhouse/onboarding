@@ -25,6 +25,8 @@
   },
   "include": [
     "server.ts",
+    "mcp-server.ts",
+    "lib/**/*.ts",
     "public/**/*.ts",
     "scripts/**/*.ts"
   ]

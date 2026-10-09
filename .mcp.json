@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "liquidity-house-knowledge": {
+      "command": "node",
+      "args": [
+        "mcp-server.ts"
+      ]
+    }
+  }
+}
