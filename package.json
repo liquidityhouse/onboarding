@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "export": "node scripts/export-code.ts",
     "mcp": "node mcp-server.ts",
-    "mcp:check": "node scripts/mcp-check.ts"
+    "mcp:check": "node scripts/mcp-check.ts",
+    "api:check": "node scripts/api-check.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.1",

@@ -1,8 +1,12 @@
 % api.pl — knowledge-graph bridge and JSON API consumed by the browser.
 %
-% The UI calls api(Request) and parses the JSON written to stdout.
-%   api(snapshot)    — domains, predicates, types, roles, users, rules, entities, triples
-%   api(explain(E))  — facts about E and proof-based explanations of its derived values
+% The web server and the MCP server call api(Request) and parse the JSON written
+% to stdout. Every request that returns knowledge takes the asker's role and
+% only answers from that role's domains.
+%   api(session(user(U))) / api(session(email(E)))  — who is asking, their role and scope
+%   api(users)                                       — accounts, for the dev-mode picker
+%   api(graph(Role))                                 — what the explorer draws
+%   api(explain(E, Role))                            — facts and explained conclusions about E
 % Agent requests (overview, context, verify, explain_goal) are at the end of the file.
 
 :- discontiguous(api_term/2).
@@ -76,25 +80,47 @@ json_code(C) :- put_code(C).
 api(R) :- api_term(R, J), !, json(J), nl.
 api(R) :- json(obj([error-R])), nl.
 
-api_term(snapshot, obj([
-        domains-arr(Ds), predicates-arr(Ps), types-arr(Ts), roles-arr(Rs),
-        users-arr(Us), rules-arr(RDs), entities-arr(Es), triples-arr(Trs)])) :-
-    findall(obj([id-D, label-L]), ( domain(D), label_of(D, L) ), Ds),
+% --- Identity: who is asking, and what their role may see ---
+api_term(session(user(U)), J) :- !,
+    (   user_account(U, R) -> session_json(U, R, J)
+    ;   J = obj([user-U, problem-'unknown user']) ).
+api_term(session(email(E)), J) :- !,
+    (   email_address(U, A), A == E, user_account(U, R) -> session_json(U, R, J)
+    ;   J = obj([email-E, problem-'no account for this email']) ).
+
+session_json(U, R, obj([user-U, name-N, role-R, role_label-RL, domains-arr(Ds), features-arr(Fs), start-St])) :-
+    label_of(U, N), label_of(R, RL),
+    findall(D, role_domain(R, D), Ds),
+    findall(F, role_feature(R, F), Fs),
+    ( role_start(R, St) -> true ; St = null ).
+
+% allowed(Role, Endpoint): the web server's authorisation, from can_call/2 (system.pl).
+api_term(allowed(Role, Endpoint), obj([allowed-bool(B)])) :-
+    ( can_call(Role, Endpoint) -> B = true ; B = false ).
+
+% tool_docs: MCP tool descriptions, from purpose/2 (system.pl).
+api_term(tool_docs, obj(Docs)) :-
+    findall(T-D, ( mcp_tool(T, _), purpose(T, D) ), Docs).
+
+api_term(users, obj([users-arr(Us)])) :-
+    findall(obj([id-U, name-N, role-R]), ( user_account(U, R), label_of(U, N) ), Us).
+
+% graph(Role): everything the explorer draws, limited to the role's domains.
+api_term(graph(Role), obj([problem-'unknown role'])) :- \+ role(Role), !.
+api_term(graph(Role), obj([
+        domains-arr(Ds), predicates-arr(Ps), types-arr(Ts),
+        rules-arr(RDs), entities-arr(Es), triples-arr(Trs)])) :-
+    findall(obj([id-D, label-L]), ( domain(D), role_domain(Role, D), label_of(D, L) ), Ds),
     findall(obj([id-P, arity-N, domain-D, label-L, derived-bool(false)]),
-            ( kb_predicate(P, N, D), edge_label(P, L) ), Ps0),
+            ( kb_predicate(P, N, D), role_domain(Role, D), edge_label(P, L) ), Ps0),
     findall(obj([id-P, arity-N, domain-D, label-L, derived-bool(true)]),
-            ( derived_predicate(P, N, D), edge_label(P, L) ), Ps1),
+            ( derived_predicate(P, N, D), role_domain(Role, D), edge_label(P, L) ), Ps1),
     append(Ps0, Ps1, Ps),
     findall(obj([id-T, label-L, color-C, shape-S]), ( type_style(T, C, S), label_of(T, L) ), Ts),
-    findall(obj([id-R, label-L, domains-arr(RD), features-arr(RF), start-St]),
-            ( role(R), label_of(R, L),
-              findall(D, role_domain(R, D), RD),
-              findall(F, role_feature(R, F), RF),
-              ( role_start(R, St) -> true ; St = null ) ),
-            Rs),
-    findall(obj([id-U, name-N, role-R]), ( user_account(U, R), label_of(U, N) ), Us),
-    findall(obj([predicate-P, text-T]), rule_description(P, T), RDs),
-    findall(t(S, L, O, P, K), kb_triple(S, L, O, P, K), Raw),
+    findall(obj([predicate-P, text-T]),
+            ( derived_predicate(P, _, D), role_domain(Role, D), rule_description(P, T) ), RDs),
+    findall(T, scoped_triple(Role, T), Raw0),
+    dedupe(Raw0, Raw),   % a conclusion reached two ways is still one edge
     findall(obj([s-S, p-L, o-O, pred-P, domain-D, derived-bool(B), severity-Sv]),
             ( member(t(S, L, O, P, K), Raw),
               pred_domain(P, D),
@@ -105,24 +131,41 @@ api_term(snapshot, obj([
     sort(Xs0, Xs),
     findall(obj([id-X, type-T, label-L]), ( member(X, Xs), entity_type(X, T), phrase_of(X, L) ), Es).
 
-api_term(explain(E), obj([id-E, type-T, phrase-Ph, facts-arr(Fs), conclusions-arr(Cs)])) :-
+% explain(E, Role): facts and explained conclusions about E within the role's domains.
+api_term(explain(E, Role), obj([id-E, problem-'not visible in this role scope'])) :-
+    \+ visible(E, Role), !.
+api_term(explain(E, Role), obj([id-E, type-T, phrase-Ph, facts-arr(Fs), conclusions-arr(Cs)])) :-
     entity_type(E, T),
     phrase_of(E, Ph),
-    findall(Txt, ( kb_predicate(P, N, _), functor(H, P, N),
+    findall(Txt, ( kb_predicate(P, N, D), role_domain(Role, D), functor(H, P, N),
                    catch(H, _, fail), mentions(H, E), sentence(H, Txt) ), Fs0),
     sort(Fs0, Fs),
-    findall(obj([predicate-P, severity-Sv, goal-GA, text-Txt, lines-arr(Ls), proof-PA]),
-            ( derived_predicate(P, 2, _),
+    findall(GA-obj([predicate-P, severity-Sv, goal-GA, text-Txt, lines-arr(Ls), proof-PA]),
+            ( derived_predicate(P, 2, D), role_domain(Role, D),
               G =.. [P, E, _],
               catch(solve(G, Proof), _, fail),
               sentence(G, Txt),
               severity(G, Sv),
               once(proof_lines(Proof, 0, Lines)),
-              findall(obj([depth-D, kind-K, text-X]), member(line(D, K, X), Lines), Ls),
+              findall(obj([depth-D1, kind-K, text-X]), member(line(D1, K, X), Lines), Ls),
               format(atom(GA), "~q", [G]),
               proof_term(Proof, PT),
               format(atom(PA), "~q", [PT]) ),
-            Cs).
+            Keyed),
+    first_per_key(Keyed, Cs).   % one explanation per conclusion, however many proofs
+
+first_per_key([], []).
+first_per_key([K-V|KVs], [V|Vs]) :- drop_key(K, KVs, Rest), first_per_key(Rest, Vs).
+drop_key(_, [], []).
+drop_key(K, [K1-_|KVs], Rest) :- K1 == K, !, drop_key(K, KVs, Rest).
+drop_key(K, [KV|KVs], [KV|Rest]) :- drop_key(K, KVs, Rest).
+
+% E is visible to Role when it takes part in a relation of one of the role's domains.
+visible(E, Role) :-
+    ( kb_predicate(P, N, D) ; derived_predicate(P, N, D) ),
+    role_domain(Role, D),
+    functor(H, P, N), between(1, N, I), arg(I, H, E),
+    catch(H, _, fail), !.
 
 mentions(H, E) :- H =.. [_|Args], member(A, Args), A == E, !.
 
@@ -136,12 +179,12 @@ proof_term(rule(G, _, _, Sub), (G :- PS)) :- proof_term(Sub, PS).
 % --- Agent requests (MCP): progressive disclosure over the same knowledge ---
 %   api(overview(Domain, Role))           — domains, their relations and entities, services, rules
 %   api(context(Entity, Depth, Role, Max)) — triples within Depth hops of Entity
-%   api(verify(Who, Service, Done))        — what working on Service needs, and what is missing
-%   api(explain_goal(Text, Max))           — English proof traces for a goal such as 'soft_credit_limit(dope, L)'
+%   api(verify(Who, Service, Done, Role))  — what working on Service needs, and what is missing
+%   api(explain_goal(Text, Max, Role))     — English proof traces for a goal such as 'soft_credit_limit(dope, L)'
 % Answers that cannot be given carry a `problem` and hints instead of failing.
 
 % Walks pass through entities only, never through links or numbers.
-walkable(X) :- atom(X), entity_type(X, T), T \== url, T \== value.
+walkable(X) :- atom(X), entity_type(X, T), T \== url, T \== value, T \== text.
 
 scoped_triple(Role, t(S, L, O, P, K)) :-
     kb_triple(S, L, O, P, K), pred_domain(P, D), role_domain(Role, D).
@@ -233,7 +276,9 @@ done(Who, Item, Done) :- ( catch(completed(Who, Item), _, fail) ; memberchk(Item
 action_of(T, A) :- action(T, A), !.
 action_of(_, 'set up').
 
-api_term(verify(Who, Service, Done), J) :-
+api_term(verify(_, _, _, Role), obj([problem-'requirements are not in this role scope'])) :-
+    \+ ( derived_predicate(requires, _, D), role_domain(Role, D) ), !.
+api_term(verify(Who, Service, Done, _), J) :-
     findall(I, prerequisite(Service, I), Is0),
     dedupe(Is0, Is),
     findall(obj([item-I, type-T, action-A, satisfied-bool(B), link-Link, ask-arr(Ps), because-arr(Why)]),
@@ -281,20 +326,22 @@ drop_all(X, [Y|Ys], Zs) :- Y == X, !, drop_all(X, Ys, Zs).
 drop_all(X, [Y|Ys], [Y|Zs]) :- drop_all(X, Ys, Zs).
 
 % --- Explaining a goal or a rule ---
-explainable(P, A) :- kb_predicate(P, A, _).
-explainable(P, A) :- derived_predicate(P, A, _).
+explainable(P, A, Role) :- kb_predicate(P, A, D), role_domain(Role, D).
+explainable(P, A, Role) :- derived_predicate(P, A, D), role_domain(Role, D).
 
-api_term(explain_goal(Text, Max), J) :-
+api_term(explain_goal(_, _, Role), obj([problem-'unknown role', roles-arr(Rs)])) :-
+    \+ role(Role), !, findall(R, role(R), Rs).
+api_term(explain_goal(Text, Max, Role), J) :-
     (   catch(read_term_from_atom(Text, G, [variable_names(Vs)]), _, fail)
-    ->  explain_parsed(Text, G, Vs, Max, J)
-    ;   explain_problem(Text, 'not a readable goal', J) ).
+    ->  explain_parsed(Text, G, Vs, Max, Role, J)
+    ;   explain_problem(Text, 'not a readable goal', Role, J) ).
 
 % A bare rule name: describe the rule.
-explain_parsed(Text, G, _, _, obj([expression-Text, rule-G, descriptions-arr(Ds)])) :-
-    atom(G), derived_predicate(G, _, _), !,
+explain_parsed(Text, G, _, _, Role, obj([expression-Text, rule-G, descriptions-arr(Ds)])) :-
+    atom(G), derived_predicate(G, _, D0), role_domain(Role, D0), !,
     findall(D, rule_description(G, D), Ds).
-explain_parsed(Text, G, Vs, Max, J) :-
-    callable(G), functor(G, P, A), explainable(P, A), !,
+explain_parsed(Text, G, Vs, Max, Role, J) :-
+    callable(G), functor(G, P, A), explainable(P, A, Role), !,
     findall(Vs-G-Proof, catch(solve(G, Proof), _, fail), Sols0),
     length(Sols0, N),
     take(Max, Sols0, Sols),
@@ -307,11 +354,11 @@ explain_parsed(Text, G, Vs, Max, J) :-
             Answers),
     ( N > 0 -> Holds = true ; Holds = false ),
     J = obj([expression-Text, holds-bool(Holds), answers_total-N, answers-arr(Answers)]).
-explain_parsed(Text, _, _, _, J) :-
-    explain_problem(Text, 'not an explainable goal', J).
+explain_parsed(Text, _, _, _, Role, J) :-
+    explain_problem(Text, 'not an explainable goal in this role scope', Role, J).
 
-explain_problem(Text, Problem, obj([expression-Text, problem-Problem, explainable-arr(Ps)])) :-
-    findall(PA, ( explainable(P, A), format(atom(PA), "~w/~w", [P, A]) ), Ps).
+explain_problem(Text, Problem, Role, obj([expression-Text, problem-Problem, explainable-arr(Ps)])) :-
+    findall(PA, ( explainable(P, A, Role), format(atom(PA), "~w/~w", [P, A]) ), Ps).
 
 % Explanation lines as one indented text, two spaces per level.
 lines_text(Lines, T) :-

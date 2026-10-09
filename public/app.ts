@@ -1,9 +1,8 @@
-// Liquidity House Knowledge Explorer — UI. All knowledge comes from /api/kb, reasoned over in-browser by Trealla.
+// Liquidity House Knowledge Explorer — UI. The server reasons over the knowledge base and
+// answers only within the viewer's role; this page draws and filters what it is given.
 
 import { DataSet, Network, type Edge, type Node as VisNode, type Options } from "vis-network/standalone";
-import {
-  KbEngine, type Explanation, type KbPayload, type Role, type Snapshot, type Triple, type TypeStyle,
-} from "./prolog.ts";
+import type { Explanation, Graph, Session, SessionInfo, Triple, TypeStyle } from "../lib/kb-types.ts";
 
 type View = "mindmap" | "hierarchy" | "table" | "console";
 type Direction = "LR" | "UD" | "RL" | "DU";
@@ -56,9 +55,8 @@ const store = {
 };
 
 // --- State ---
-let engine: KbEngine;
-let kb: KbPayload;
-let snap: Snapshot;
+let info: SessionInfo;
+let snap: Graph;
 let userId = "";
 let settings: Settings;
 let selected: string | number | null = null;
@@ -67,11 +65,8 @@ let network: Network | null = null;
 let refreshTimer: number | undefined;
 let tableSort: { key: keyof Triple; dir: 1 | -1 } = { key: "s", dir: 1 };
 
-const role = (): Role => {
-  const user = snap.users.find((u) => u.id === userId) ?? snap.users[0];
-  return snap.roles.find((r) => r.id === user.role) ?? snap.roles[0];
-};
-const can = (feature: string) => role().features.includes(feature);
+const session = (): Session => info.session;
+const can = (feature: string) => session().features.includes(feature);
 const typeOf = (entity: string | number) =>
   typeof entity === "number" ? "value" : snap.entities.find((e) => e.id === entity)?.type ?? "concept";
 const styleOf = (type: string): TypeStyle =>
@@ -80,15 +75,15 @@ const colorOf = (type: string) => settings.colors[type] ?? styleOf(type).color;
 const shapeOf = (type: string) => settings.shapes[type] ?? styleOf(type).shape;
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-function defaults(r: Role): Settings {
+function defaults(s: Session): Settings {
   return {
     view: "mindmap",
-    focus: r.start,
+    focus: s.start,
     depth: 2,
-    domains: [...r.domains],
+    domains: [...s.domains],
     hiddenPredicates: [],
     hiddenTypes: [],
-    showValues: r.id === "risk_officer",
+    showValues: s.role === "risk_officer",
     showDerived: true,
     edgeLabels: true,
     sizeByDegree: false,
@@ -101,9 +96,9 @@ function defaults(r: Role): Settings {
 }
 
 function loadSettings() {
-  const r = role();
-  settings = { ...defaults(r), ...(store.get<Partial<Settings>>(`kbx:settings:${userId}`) ?? {}) };
-  settings.domains = settings.domains.filter((d) => r.domains.includes(d));
+  const s = session();
+  settings = { ...defaults(s), ...(store.get<Partial<Settings>>(`kbx:settings:${userId}`) ?? {}) };
+  settings.domains = settings.domains.filter((d) => s.domains.includes(d));
   if (!VIEWS.some((v) => v.id === settings.view && (!v.feature || can(v.feature)))) settings.view = "mindmap";
 }
 
@@ -120,7 +115,7 @@ function history_replace(hash: string) {
 
 // --- Scope & graph construction ---
 function scopedTriples(): Triple[] {
-  const domains = new Set(settings.domains.filter((d) => role().domains.includes(d)));
+  const domains = new Set(settings.domains.filter((d) => session().domains.includes(d)));
   const hiddenPreds = new Set(settings.hiddenPredicates);
   return snap.triples.filter((t) =>
     domains.has(t.domain) && !hiddenPreds.has(t.pred) && (settings.showDerived || !t.derived));
@@ -320,8 +315,7 @@ const domainLabel = (id: string) => snap.domains.find((d) => d.id === id)?.label
 
 // --- Rendering: sidebar controls ---
 function renderControls() {
-  const r = role();
-  $("role-badge").textContent = r.label;
+  $("role-badge").textContent = session().role_label;
 
   $("views").replaceChildren(...VIEWS.filter((v) => !v.feature || can(v.feature)).map((v) => {
     const b = el("button", { type: "button", textContent: v.label });
@@ -331,16 +325,15 @@ function renderControls() {
     return b;
   }));
 
+  // The server only sends the domains this role may see.
   $("domains").replaceChildren(...snap.domains.map((d) => {
-    const allowed = r.domains.includes(d.id);
-    const input = el("input", { type: "checkbox", checked: allowed && settings.domains.includes(d.id), disabled: !allowed });
+    const input = el("input", { type: "checkbox", checked: settings.domains.includes(d.id) });
     input.onchange = () => {
       settings.domains = input.checked ? [...settings.domains, d.id] : settings.domains.filter((x) => x !== d.id);
       update();
     };
     const count = snap.triples.filter((t) => t.domain === d.id).length;
-    return el("label", { className: allowed ? "" : "disabled", title: allowed ? "" : `Not in the ${r.label} scope` },
-      input, `${d.label} `, el("span", { className: "muted" }, `(${count})`));
+    return el("label", {}, input, `${d.label} `, el("span", { className: "muted" }, `(${count})`));
   }));
 
   $("predicates").replaceChildren(...snap.predicates
@@ -426,7 +419,7 @@ async function renderExplain() {
   if (target === null) return panel.replaceChildren(overview());
   let ex: Explanation;
   try {
-    ex = await engine.explain(target);
+    ex = await api<Explanation>(`/api/explain/${encodeURIComponent(String(target))}`);
   } catch (e) {
     const detail = can("technical") ? `: ${(e as Error).message}` : ".";
     return panel.replaceChildren(el("p", { className: "muted" }, `No explanation available for ${target}${detail}`));
@@ -452,14 +445,14 @@ async function renderExplain() {
     parts.push(el("h3", { className: "ex-section" }, "Conclusions"));
     const bySeverity = [...ex.conclusions].sort((a, b) => Number(b.severity === "warning") - Number(a.severity === "warning"));
     for (const c of bySeverity) {
-      const details = el("details", { open: c.severity === "warning" || role().id === "risk_officer" },
+      const details = el("details", { open: c.severity === "warning" || session().role === "risk_officer" },
         el("summary", {}, "How was this derived?"),
         el("ul", { className: "lines" }, ...c.lines.slice(1).map((l) => {
           const li = el("li", { className: l.kind, textContent: l.text });
           li.style.setProperty("--depth", String(l.depth - 1));
           return li;
         })));
-      if (can("technical")) {
+      if (c.proof) {
         details.append(el("details", {}, el("summary", {}, "Technical detail"), el("pre", { className: "raw", textContent: c.proof })));
       }
       parts.push(el("div", { className: `card ${c.severity}` }, el("div", { className: "headline", textContent: c.text }), details));
@@ -504,9 +497,9 @@ function overview(): HTMLElement {
         return b;
       })));
   }
-  if (can("technical")) {
-    wrap.append(el("h3", { className: "ex-section" }, `Knowledge base ${kb.version}`),
-      el("ul", { className: "files" }, ...kb.files.map((f) => el("li", {}, `${f.name} — ${f.lines} lines`))));
+  if (info.files) {
+    wrap.append(el("h3", { className: "ex-section" }, `Knowledge base ${info.version}`),
+      el("ul", { className: "files" }, ...info.files.map((f) => el("li", {}, `${f.name} — ${f.lines} lines`))));
   }
   return wrap;
 }
@@ -517,9 +510,10 @@ async function runConsole() {
   const goal = $<HTMLTextAreaElement>("console-input").value;
   out.textContent = "…";
   try {
-    out.textContent = (await engine.console(goal)).join("\n");
+    const { lines } = await api<{ lines: string[] }>("/api/query", { method: "POST", body: JSON.stringify({ goal }) });
+    out.textContent = lines.join("\n");
   } catch (e) {
-    out.textContent = String(e);
+    out.textContent = (e as Error).message;
   }
 }
 
@@ -553,28 +547,32 @@ function update(full = true) {
   if (full) renderExplain();
 }
 
-// --- Loading the KB from the API ---
-let etag = "";
+// --- Talking to the server ---
+/** JSON from the API. In dev mode the picked user travels in X-Kb-User; behind a proxy the server knows. */
+async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (init.body) headers.set("Content-Type", "application/json");
+  if (userId && info?.auth !== "proxy") headers.set("X-Kb-User", userId);
+  const res = await fetch(path, { ...init, headers });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.problem ?? body.error ?? `${path} → ${res.status}`);
+  return body as T;
+}
 
-async function fetchKb(force = false): Promise<boolean> {
-  const res = await fetch("/api/kb", { headers: !force && etag ? { "If-None-Match": etag } : {} });
-  if (res.status === 304) return false;
-  if (!res.ok) throw new Error(`GET /api/kb → ${res.status}`);
-  etag = res.headers.get("ETag") ?? "";
-  const payload = (await res.json()) as KbPayload;
-  const next = await KbEngine.create(payload.program);
-  const nextSnap = await next.snapshot();
-  kb = payload; engine = next; snap = nextSnap;
+/** Who am I, and what may I see: session first (it decides the role), then the scoped graph. */
+async function loadScope() {
+  info = await api<SessionInfo>("/api/session");
+  userId = info.session.user;
+  snap = await api<Graph>("/api/graph");
   showLoadWarnings();
-  return true;
 }
 
 function showLoadWarnings() {
   const banner = $("banner");
-  banner.hidden = !engine.warnings;
-  banner.textContent = !engine.warnings ? ""
-    : can("technical") ? `Problems while loading the knowledge base:\n${engine.warnings}`
-    : "Some knowledge could not be loaded, so parts of the picture may be missing. Please let the Liquidity House team know.";
+  banner.hidden = !info.warnings && !info.incomplete;
+  banner.textContent = info.warnings ? `Problems while loading the knowledge base:\n${info.warnings}`
+    : info.incomplete ? "Some knowledge could not be loaded, so parts of the picture may be missing. Please let the Liquidity House team know."
+    : "";
 }
 
 function setStatus(state: "live" | "error" | "", text: string) {
@@ -585,14 +583,18 @@ function setStatus(state: "live" | "error" | "", text: string) {
 
 function setLive() {
   setStatus("live", `Updated ${new Date().toLocaleTimeString()}`);
-  $("kb-status").title = can("technical") ? `Knowledge base version ${kb.version}` : "Knowledge is refreshed automatically";
+  $("kb-status").title = can("technical") ? `Knowledge base version ${info.version}` : "Knowledge is refreshed automatically";
 }
 
+/** Poll the public version; refetch the scoped graph only when the knowledge changed. */
 async function refresh(force = false) {
   try {
-    const changed = await fetchKb(force);
+    const { version } = await api<{ version: string }>("/api/health");
+    if (force || version !== info.version) {
+      await loadScope();
+      update();
+    }
     setLive();
-    if (changed) update();
   } catch (e) {
     setStatus("error", (e as Error).message);
   }
@@ -605,19 +607,33 @@ function scheduleRefresh() {
   if (seconds > 0) refreshTimer = window.setInterval(() => refresh(), seconds * 1000);
 }
 
-function chooseUser(id: string) {
-  userId = snap.users.some((u) => u.id === id) ? id : snap.users[0].id;
-  $<HTMLSelectElement>("user").value = userId;
+/** Dev mode only: act as another user. The server answers in that user's role. */
+async function switchUser(id: string) {
+  userId = id;
+  store.set("kbx:user", id);
+  await loadScope();
   loadSettings();
   selected = null;
   history = settings.focus ? [settings.focus] : [];
 }
 
-/** Shareable state in the URL: #u=user&v=view&f=focus&d=depth */
-function applyHash() {
+function renderUserPicker() {
+  const select = $<HTMLSelectElement>("user");
+  const users = info.users ?? [{ id: info.session.user, name: info.session.name, role: info.session.role }];
+  select.replaceChildren(...users.map((u) => el("option", { value: u.id, textContent: u.name })));
+  select.value = userId;
+  select.disabled = info.auth === "proxy";
+  select.title = info.auth === "proxy" ? "Signed in" : "Development mode: pick who to view as";
+}
+
+/** Shareable state in the URL: #u=user&v=view&f=focus&d=depth (u only applies in dev mode). */
+async function applyHash() {
   const hash = new URLSearchParams(location.hash.slice(1));
-  const u = hash.get("u") ?? (userId || store.get<string>("kbx:user")) ?? snap.users[0].id;
-  if (u !== userId) chooseUser(u);
+  const u = hash.get("u");
+  if (info.auth === "dev" && u && u !== userId && info.users?.some((x) => x.id === u)) {
+    await switchUser(u);
+    renderUserPicker();
+  }
   const hv = hash.get("v") as View | null;
   if (hv && VIEWS.some((v) => v.id === hv && (!v.feature || can(v.feature)))) settings.view = hv;
   const f = hash.get("f");
@@ -628,19 +644,25 @@ function applyHash() {
 async function main() {
   setStatus("", "loading…");
   try {
-    await fetchKb(true);
+    userId = store.get<string>("kbx:user") ?? "";
+    await loadScope();
   } catch (e) {
     setStatus("error", "failed to load");
     $("banner").hidden = false;
     $("banner").textContent = `Could not load the knowledge base: ${(e as Error).message}`;
     return;
   }
-  const userSelect = $<HTMLSelectElement>("user");
-  userSelect.replaceChildren(...snap.users.map((u) => el("option", { value: u.id, textContent: u.name })));
-  userSelect.onchange = () => { chooseUser(userSelect.value); setLive(); showLoadWarnings(); update(); };
+  loadSettings();
+  history = settings.focus ? [settings.focus] : [];
+  renderUserPicker();
+  $<HTMLSelectElement>("user").onchange = async (e) => {
+    await switchUser((e.target as HTMLSelectElement).value);
+    setLive();
+    update();
+  };
 
-  applyHash();
-  window.addEventListener("hashchange", () => { applyHash(); update(); });
+  await applyHash();
+  window.addEventListener("hashchange", async () => { await applyHash(); update(); });
 
   $("focus-input").addEventListener("change", (e) => {
     const v = (e.target as HTMLInputElement).value.trim();
@@ -663,7 +685,6 @@ async function main() {
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => update(false));
 
   setLive();
-  showLoadWarnings();
   scheduleRefresh();
   update();
 }

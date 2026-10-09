@@ -4,6 +4,7 @@
     "onboarding.pl",
     "kb/riskx_kb.pl",
     "kb/progress.pl",
+    "kb/system.pl",
     "kb/lexicon.pl",
     "kb/schema.pl",
     "kb/explain.pl",

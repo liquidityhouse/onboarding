@@ -19,6 +19,26 @@ noun(product_domain, domain).
 noun(email_role, role).
 noun(email_provider, provider).
 noun(google_workspace, 'Google Workspace').
+noun(system, 'System').
+noun(ui, 'user interface').
+noun(knowledge, 'knowledge base').
+noun(tool, 'MCP tool').
+noun(request, 'knowledge request').
+noun(text, description).
+noun(node, 'Node.js').
+noun(browser, 'the browser').
+noun(component, kind).
+noun(uses, part).
+noun(relies_on, dependency).
+noun(access, feature).
+noun(role_feature, feature).
+noun(can_call, endpoint).
+noun(answers_with, request).
+noun(mcp_tool, request).
+noun(served_by, server).
+noun(same_answer, 'MCP tool').
+noun(package_version, version).
+noun(runs_on, runtime).
 noun(ggr_90d, '90-day gross gaming revenue').
 noun(net_deposits, 'net player deposits').
 noun(dau, 'daily active user count').
@@ -51,6 +71,16 @@ noun(adam, 'Adam, Software Engineer').
 % plural(Concept) — takes "are" instead of "is".
 plural(net_deposits).
 
+% subject(Relation, Phrase) — what a relation's subjects are called in rules, when
+% its facts mix kinds of subject (otherwise it is read from the first fact).
+:- dynamic(subject/2).
+subject(component, component).
+subject(uses, component).
+subject(role_feature, role).
+subject(access, endpoint).
+subject(answers_with, endpoint).
+subject(mcp_tool, 'MCP tool').
+
 % verb(Relation, Phrase) — relations read as "Subject Verb Object".
 % Predicates without a verb are attributes: "the <noun> of Subject is Value".
 verb(onboarding, includes).
@@ -75,6 +105,19 @@ verb(monitored_by, 'is monitored by').
 verb(operator, 'has status').
 verb(slack_channel, contains).
 verb(requires, requires).
+verb(component, 'is of kind').
+verb(executes_in, 'runs in').
+verb(kb_file, 'is made of').
+verb(uses, uses).
+verb(relies_on, 'relies on').
+verb(access, requires).
+verb(role_feature, has).
+verb(can_call, 'can call').
+verb(answers_with, 'answers with').
+verb(mcp_tool, 'answers with').
+verb(served_by, 'is served by').
+verb(same_answer, 'gives the same answer as').
+verb(runs_on, 'runs on').
 verb(depends_on, 'depends on').
 verb(needs_setup, needs).
 
@@ -99,6 +142,9 @@ bare(account).
 bare(domain).
 bare(email).
 bare(address).
+bare(kind).
+bare(runtime).
+bare(text).
 bare(concept).
 
 % flag(Attribute, Value, Severity) — values that deserve attention.

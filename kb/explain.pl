@@ -60,7 +60,9 @@ name_body(G, C) :- compound(G), G =.. [P, S, O], !,
     (   var(O) -> noun_of(P, N0), fresh_name(C, S, N0, N), O = n(N, P) ; true ).
 name_body(_, _).
 
-% What P's subjects are called, read from P's own facts: repo/2 -> "repository".
+% What P's subjects are called: the lexicon's subject/2 if it says, otherwise
+% read from P's own facts (repo/2 -> "repository").
+subject_noun(P, N, none) :- subject(P, N), !.
 subject_noun(P, N, Ty) :-
     functor(G, P, 2), catch(G, _, fail), arg(1, G, S), atomic(S),
     entity_type(S, Ty), !,
