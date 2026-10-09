@@ -142,6 +142,22 @@ rule_source(P, I, _, [source-obj([file-F, line-L, text-T])]) :-
     catch(clause_source(P, _, I, F, L, T), _, fail), !.
 rule_source(_, _, Named, [pattern-Pat]) :- clause_pattern(Named, Pat).
 
+% Where a stated fact is written: the clause_source/6 entry that reads as exactly this
+% fact, or, for a generated one, the module that generates it.
+fact_source(G, obj([file-F, line-L, text-T])) :-
+    functor(G, P, A),
+    catch(clause_source(P, A, _, F, L, T), _, fail),
+    catch(read_term_from_atom(T, G1, []), _, fail),
+    G1 == G, !.
+fact_source(G, obj([file-F, generated-bool(true), text-T])) :-
+    functor(G, P, A), catch(generated_predicate(P, A), _, fail),
+    source_file(kb_source, F), !,
+    format(atom(T0), "~q.", [G]), T = T0.
+
+% A stated fact's source, for technical roles.
+stated_source(Role, G, [source-J]) :- role_feature(Role, technical), fact_source(G, J), !.
+stated_source(_, _, []).
+
 % via: the clause that made a conclusion and what each of its slots stood for; technical
 % roles also get the clause with these values and the query that asks for it again.
 via_of(Role, G, Via) :- ( catch(once(solve(G, Proof)), _, fail), via_json(Role, Proof, Via) -> true ; Via = null ).
@@ -166,9 +182,10 @@ api_term(explain(E, Role), obj([id-E, problem-'not visible in this role scope'])
 api_term(explain(E, Role), obj([id-E, type-T, phrase-Ph, facts-arr(Fs), conclusions-arr(Cs)])) :-
     entity_type(E, T),
     phrase_of(E, Ph),
-    findall(Txt, ( kb_predicate(P, N, D), role_domain(Role, D), functor(H, P, N),
-                   catch(H, _, fail), mentions(H, E), sentence(H, Txt) ), Fs0),
-    sort(Fs0, Fs),
+    findall(Txt-H, ( kb_predicate(P, N, D), role_domain(Role, D), functor(H, P, N),
+                     catch(H, _, fail), mentions(H, E), sentence(H, Txt) ), Fs0),
+    keysort(Fs0, Fs1), first_per_key(Fs1, Hs),
+    findall(obj([text-Txt|Src]), ( member(H, Hs), sentence(H, Txt), stated_source(Role, H, Src) ), Fs),
     findall(GA-obj([predicate-P, severity-Sv, goal-GA, text-Txt, via-Via, lines-arr(Ls)]),
             ( derived_predicate(P, 2, D), role_domain(Role, D),
               G =.. [P, E, _],
@@ -367,11 +384,11 @@ explain_parsed(Text, G, Vs, Max, Role, J) :-
     first_per_key(Keyed, Sols0),   % one answer per distinct conclusion
     length(Sols0, N),
     take(Max, Sols0, Sols),
-    findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), via-Via, explanation-X, lines-arr(Ls)]),
+    findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), via-Via, explanation-X, lines-arr(Ls)|Src]),
             ( member(Vs1-G1-P1, Sols),
               findall(Name-Val, member(Name=Val, Vs1), Bs),
               sentence(G1, T), severity(G1, Sv), via_json(Role, P1, Via),
-              ( P1 = rule(_, true, _, _) -> Dv = false ; Dv = true ),
+              ( P1 = rule(_, true, _, _) -> Dv = false, stated_source(Role, G1, Src) ; Dv = true, Src = [] ),
               once(proof_lines(P1, 0, Lines)), lines_text(Lines, X),
               findall(obj([depth-D, kind-K, text-LT]), member(line(D, K, LT), Lines), Ls) ),
             Answers),

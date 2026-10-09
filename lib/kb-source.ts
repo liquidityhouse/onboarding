@@ -58,7 +58,7 @@ const SUMMARY_FILES: [dir: string, pattern: RegExp][] = [
  * Facts the repository already records, so nobody restates them (see kb/system.pl):
  * kb_file/2 from the manifest; package_version/2, engine_requirement/2, npm_script/2 and
  * npm_script_file/2 from package.json; file_summary/2 from each file's header comment.
- * clause_source/6 holds each rule clause as written, for technical readers. Each generated
+ * clause_source/6 holds each fact and explained rule as written, for technical readers. Each generated
  * predicate is also listed in generated_predicate/2, so the audit counts these as free.
  */
 async function generatedFacts(sources: string[]): Promise<string> {
@@ -83,8 +83,8 @@ async function generatedFacts(sources: string[]): Promise<string> {
     const summary = headerSummary(await readFile(join(ROOT, file), "utf8"));
     if (summary) fact("file_summary", file, summary);
   }
-  // Explained rules as written (those declared dynamic, practice dynamic_rules), numbered
-  // like clause/2 numbers them across the whole program.
+  // Facts and explained rules (those declared dynamic, practice dynamic_rules) as written,
+  // numbered like clause/2 numbers them across the whole program.
   const texts = await Promise.all(sources.map((f) => readFile(join(ROOT, f), "utf8")));
   const dynamic = new Set(texts.flatMap((t) => [...t.matchAll(/^:-\s*dynamic\(?\s*([a-z]\w*\/\d+)/gm)].map((m) => m[1])));
   const seen = new Map<string, number>();
@@ -93,7 +93,7 @@ async function generatedFacts(sources: string[]): Promise<string> {
       const key = `${c.name}/${c.arity}`;
       const index = (seen.get(key) ?? 0) + 1;
       seen.set(key, index);
-      if (c.rule && dynamic.has(key)) {
+      if (!c.rule || dynamic.has(key)) {
         generated.set("clause_source", 6);
         facts.push(`clause_source(${c.name}, ${c.arity}, ${index}, ${atom(file)}, ${c.line}, ${atom(c.text)}).`);
       }
@@ -145,8 +145,11 @@ export function sourceClauses(text: string): SourceClause[] {
     const c = text[i];
     if (/\s/.test(c)) { i++; continue; }
     if (c === "%") {
+      // Only a comment on a line of its own describes the clause below; a trailing one does not.
       const line = lineAt(i);
-      if (!comment || comment.lastLine !== line - 1) comment = { start: text.lastIndexOf("\n", i) + 1, lastLine: line };
+      const lineStart = text.lastIndexOf("\n", i) + 1;
+      if (text.slice(lineStart, i).trim()) comment = null;
+      else if (!comment || comment.lastLine !== line - 1) comment = { start: lineStart, lastLine: line };
       else comment.lastLine = line;
       const eol = text.indexOf("\n", i);
       i = eol < 0 ? n : eol;
@@ -171,6 +174,9 @@ export function sourceClauses(text: string): SourceClause[] {
       else if (depth === 0 && ch === ":" && text[i + 1] === "-" && body < 0) body = i;
       else if (ch === "." && (i + 1 >= n || /[\s%]/.test(text[i + 1])) && !SYMBOL_CHARS.has(text[i - 1])) { end = i + 1; break; }
     }
+    // A comment after the dot on the same line is part of the clause as written.
+    const rest = text.slice(end).match(/^[ \t]*%[^\n]*/);
+    if (rest) end += rest[0].length;
     i = end;
     const clause = text.slice(start, end);
     const attached = comment && comment.lastLine === line - 1
