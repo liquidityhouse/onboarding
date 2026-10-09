@@ -135,6 +135,7 @@ practice(add_relation).
 practice(describe_in_headers).
 practice(fresh_format).
 practice(dynamic_rules).
+practice(isolate_reflection).
 practice(regenerate_readme).
 
 purpose(write_once, 'to state a fact only when nothing else records it, and add a rule for anything that follows from other facts').
@@ -144,6 +145,7 @@ purpose(add_relation, 'to add a relation with its facts, one kb_predicate/3 line
 purpose(describe_in_headers, 'to describe each file in the first sentence of its header comment, of medium length; components, the README and the explorer read it from there').
 purpose(fresh_format, 'to format text into a fresh variable and then unify (Url = Url0), because in Trealla format(atom(Bound), …) inside a clause succeeds without checking').
 purpose(dynamic_rules, 'to declare rules the explorer explains as dynamic, because clause/2 cannot read static predicates in Trealla').
+purpose(isolate_reflection, 'to ask predicate_property/2 only under negation (\\+ \\+ to keep the answer) and never catch errors from clause/2, because in Trealla both leave bindings that backtracking does not undo').
 purpose(regenerate_readme, 'to change the knowledge (kb/*.pl, file headers, package.json) and run npm run readme, rather than editing README.md').
 
 % --- Inferred knowledge ---

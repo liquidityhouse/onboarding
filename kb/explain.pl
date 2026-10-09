@@ -25,8 +25,7 @@ solve(G, rule(G, Body, Named, Sub)) :-
     H = G,
     solve(Body, Sub).
 
-% Asked with predicate_property/2, not by catching clause/2's permission error: in
-% Trealla, backtracking out of a catch/3 around clause/2 loses the caller's bindings.
+% Asked under negation, never by catching clause/2's error (practice isolate_reflection).
 opaque(G) :- \+ predicate_property(G, dynamic).
 
 builtin_goal(_ is _).
@@ -324,7 +323,7 @@ rule_description(P, T) :- rule_clause(P, _, Named), rule_text(Named, T).
 rule_clause(P, I, Named) :-
     derived_predicate(P, A, _),
     functor(H, P, A),
-    predicate_property(H, dynamic),
+    \+ \+ predicate_property(H, dynamic),   % see practice isolate_reflection
     findall((H :- B), clause(H, B), Cs),
     nth1(I, Cs, C),
     copy_term(C, Named),
