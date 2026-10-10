@@ -1,4 +1,4 @@
-// Free-form queries (the explorer's Query view) run in a throwaway worker with a
+// Free-form queries (the MCP query_knowledge_base tool) run in a throwaway worker with a
 // time limit, so a runaway goal or halt/0 cannot block or kill the shared engine.
 
 import { Worker } from "node:worker_threads";

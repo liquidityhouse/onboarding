@@ -55,9 +55,9 @@ purpose(knowledge_base, 'to hold every fact and rule, the vocabulary explanation
 uses(explorer_ui, web_server).
 uses(explorer_ui, 'vis-network').
 uses(web_server, kb_service).
-uses(web_server, query_sandbox).
 uses(web_server, optimiser).
 uses(mcp_server, kb_service).
+uses(mcp_server, query_sandbox).
 uses(mcp_server, '@modelcontextprotocol/sdk').
 uses(kb_service, kb_source).
 uses(kb_service, prolog_engine).
@@ -94,7 +94,6 @@ access('GET /api/overview', signed_in).
 access('GET /api/context/:entity', signed_in).
 access('GET /api/verify/:service', signed_in).
 access('GET /api/explain-goal', signed_in).
-access('POST /api/query', console).
 access('GET /api/kb', technical).
 access('GET /api/kb.pl', technical).
 access('GET /api/audit', technical).
@@ -114,12 +113,22 @@ mcp_tool(get_knowledge_overview, overview).
 mcp_tool(query_entity_context, context).
 mcp_tool(verify_task_onboarding, verify).
 mcp_tool(explain_rule_or_decision, explain_goal).
+mcp_tool(query_knowledge_base, query).
+
+% What each tool requires; can_use/2 decides who may call it, as can_call/2 does for
+% endpoints. Free-form queries see the whole knowledge base, past role scoping.
+tool_access(get_knowledge_overview, signed_in).
+tool_access(query_entity_context, signed_in).
+tool_access(verify_task_onboarding, signed_in).
+tool_access(explain_rule_or_decision, signed_in).
+tool_access(query_knowledge_base, console).
 
 registered_in(mcp_server, '.mcp.json').
 
 purpose(get_knowledge_overview, 'to start here: list the domains a role can see, their relations, their entities by type, the services, and every rule in plain English').
 purpose(query_entity_context, 'to return the facts and derived conclusions within a few hops of one entity as triples, nearest first, with the type of every entity mentioned').
 purpose(verify_task_onboarding, 'to infer everything needed to work on a service and report, for each item, what to do, its link, who can invite you, why it is needed, and whether it is done').
+purpose(query_knowledge_base, 'to run any Prolog goal against the whole knowledge base, in a throwaway sandbox with a time limit, and list every answer; for direct exploration by developers, past the role scoping the other tools apply').
 purpose(explain_rule_or_decision, 'to prove a goal such as soft_credit_limit(dope, Limit) and return its bindings with an English trace of the facts, rules and calculations used, or describe a rule by name').
 
 % --- What the explorer offers ---
@@ -133,7 +142,7 @@ offers(explorer_ui, shareable_state).
 offers(explorer_ui, knowledge_audit).
 
 purpose(stated_and_derived, 'to mark every connection as stated (solid line) or derived by a rule (dashed): hover a connection for how it is inferred, click it for why it holds').
-purpose(views, 'to switch between the mind map, the hierarchy in four directions, the triple table and the query console').
+purpose(views, 'to switch between the mind map, the hierarchy in four directions, the triple table and the audit').
 purpose(focus, 'to re-centre on an entity by clicking or searching, go back through history, and set the depth from one to five hops').
 purpose(scope, 'to toggle domains, single relations, derived facts, and value, link and description leaves').
 purpose(entity_types, 'to show or hide each type of entity and change its colour and shape').
@@ -168,6 +177,7 @@ purpose(regenerate_readme, 'to change the knowledge (kb/*.pl, file headers, pack
 :- dynamic(runs_on/2).
 :- dynamic(relies_on/2).
 :- dynamic(can_call/2).
+:- dynamic(can_use/2).
 :- dynamic(served_by/2).
 :- dynamic(same_answer/2).
 :- dynamic(runs_component/2).
@@ -188,6 +198,11 @@ relies_on(Component, Dependency) :-
 % A role can call an endpoint when it has the feature the endpoint requires.
 can_call(Role, Endpoint) :-
     access(Endpoint, Feature),
+    role_feature(Role, Feature).
+
+% A role can use an MCP tool when it has the feature the tool requires.
+can_use(Role, Tool) :-
+    tool_access(Tool, Feature),
     role_feature(Role, Feature).
 
 served_by(Endpoint, web_server) :-

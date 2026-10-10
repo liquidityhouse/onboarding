@@ -177,6 +177,10 @@ verb(kb_file, 'is made of').
 verb(uses, uses).
 verb(relies_on, 'relies on').
 verb(access, requires).
+verb(tool_access, requires).
+verb(can_use, 'can use').
+noun(can_use, 'MCP tool').
+noun(tool_access, feature).
 verb(role_feature, has).
 verb(can_call, 'can call').
 verb(answers_with, 'answers with').

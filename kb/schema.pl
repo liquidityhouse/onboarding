@@ -45,6 +45,7 @@ kb_predicate(api_docs_path, 2, platform).
 kb_predicate(built_with, 2, platform).
 kb_predicate(calls, 2, platform).
 kb_predicate(planned_host, 2, system).
+kb_predicate(tool_access, 2, system).
 kb_predicate(operator, 2, risk).
 kb_predicate(ggr_90d, 2, risk).
 kb_predicate(dau, 2, risk).
@@ -98,6 +99,7 @@ derived_predicate(requires, 2, onboarding).
 derived_predicate(runs_on, 2, system).
 derived_predicate(relies_on, 2, system).
 derived_predicate(can_call, 2, system).
+derived_predicate(can_use, 2, system).
 derived_predicate(served_by, 2, system).
 derived_predicate(same_answer, 2, system).
 derived_predicate(runs_component, 2, system).
@@ -213,7 +215,7 @@ role_domain(developer, risk).
 role_domain(developer, system).
 role_domain(admin, D) :- domain(D).
 
-% Features: table (triple table), console (advanced query), technical (raw proofs,
+% Features: table (triple table), console (free-form queries through the MCP tool), technical (raw proofs,
 % predicate names, KB files and load errors — hidden from non-technical users).
 % Every role also has public and signed_in, which open endpoints need (system.pl).
 everyone_has(public).

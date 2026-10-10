@@ -98,6 +98,10 @@ session_json(U, R, obj([user-U, name-N, role-R, role_label-RL, domains-arr(Ds), 
 api_term(allowed(Role, Endpoint), obj([allowed-bool(B)])) :-
     ( can_call(Role, Endpoint) -> B = true ; B = false ).
 
+% may_use(Role, Tool): the MCP server's authorisation, from can_use/2 (system.pl).
+api_term(may_use(Role, Tool), obj([allowed-bool(B)])) :-
+    ( can_use(Role, Tool) -> B = true ; B = false ).
+
 % tool_docs: MCP tool descriptions, from purpose/2 (system.pl).
 api_term(tool_docs, obj(Docs)) :-
     findall(T-D, ( mcp_tool(T, _), purpose(T, D) ), Docs).

@@ -9,7 +9,6 @@
 //   GET  /api/context/:entity?depth=&max=   triples within N hops of an entity
 //   GET  /api/verify/:service?who=&completed=a,b   what working on a service needs
 //   GET  /api/explain-goal?expression=&max=        English proof traces for a goal
-//   POST /api/query  { goal }           free-form goal, sandboxed     roles with the console feature
 //   GET  /api/kb, /api/kb.pl            the KB itself                 roles with the technical feature
 //   GET  /api/audit                     stated vs derived in symbols, compression candidates   technical
 //   POST /api/plan   { keep, kindsOff, maxRules, exceptions, alternatives }   best candidate sets   technical
@@ -34,7 +33,6 @@ import { current, type Current } from "./lib/kb-service.ts";
 import type { Audit, PlanRequest, Problem, Session, SessionInfo } from "./lib/kb-types.ts";
 import { plans } from "./lib/optimiser.ts";
 import { literal } from "./lib/prolog.ts";
-import { runQuery } from "./lib/sandbox.ts";
 
 const ROOT = import.meta.dirname;
 const PUBLIC = join(ROOT, "public");
@@ -107,7 +105,6 @@ const ENDPOINT: Record<string, string> = {
   context: "GET /api/context/:entity",
   verify: "GET /api/verify/:service",
   "explain-goal": "GET /api/explain-goal",
-  "POST query": "POST /api/query",
   kb: "GET /api/kb",
   "kb.pl": "GET /api/kb.pl",
   audit: "GET /api/audit",
@@ -218,15 +215,6 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL) {
       if (!expression) throw new HttpError(400, "missing expression");
       const max = intParam(url, "max", 3, 1, 20);
       return answer(res, await engine.explainGoal(expression, max, role));
-    }
-    case "POST query": {
-      const { goal } = await body(req);
-      if (typeof goal !== "string" || !goal.trim()) throw new HttpError(400, "missing goal");
-      try {
-        return json(res, { lines: await runQuery(kb.program, goal) });
-      } catch (e) {
-        return json(res, { error: (e as Error).message }, 422);
-      }
     }
     case "audit":
       return answer(res, await cached(`audit|${role}`, () => engine.audit(role)));

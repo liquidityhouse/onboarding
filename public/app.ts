@@ -7,7 +7,7 @@ import type {
   Snippet, Source, Triple, TypeStyle, Via,
 } from "../lib/kb-types.ts";
 
-type View = "mindmap" | "hierarchy" | "table" | "console" | "audit";
+type View = "mindmap" | "hierarchy" | "table" | "audit";
 type Direction = "LR" | "UD" | "RL" | "DU";
 
 interface Settings {
@@ -38,7 +38,6 @@ const VIEWS: { id: View; label: string; feature?: string }[] = [
   { id: "mindmap", label: "Mind map" },
   { id: "hierarchy", label: "Hierarchy" },
   { id: "table", label: "Table", feature: "table" },
-  { id: "console", label: "Query", feature: "console" },
   { id: "audit", label: "Audit", feature: "technical" },
 ];
 const SHAPES = ["dot", "box", "ellipse", "diamond", "hexagon", "triangle", "star", "square", "database", "text"];
@@ -1274,19 +1273,6 @@ function optimiserForm(a: Audit): HTMLElement {
     run, results);
 }
 
-// --- Console ---
-async function runConsole() {
-  const out = $("console-output");
-  const goal = $<HTMLTextAreaElement>("console-input").value;
-  out.textContent = "…";
-  try {
-    const { lines } = await api<{ lines: string[] }>("/api/query", { method: "POST", body: JSON.stringify({ goal }) });
-    out.textContent = lines.join("\n");
-  } catch (e) {
-    out.textContent = (e as Error).message;
-  }
-}
-
 // --- Navigation ---
 function setFocus(id: string, pushHistory = true) {
   settings.focus = id;
@@ -1309,7 +1295,6 @@ function update(full = true) {
   const graphView = view === "mindmap" || view === "hierarchy";
   $("graph").hidden = !graphView;
   $("table-view").hidden = view !== "table";
-  $("console-view").hidden = view !== "console";
   $("audit-view").hidden = view !== "audit";
   $("stage-empty").hidden = true;
   if (graphView) renderGraph();
@@ -1450,10 +1435,6 @@ async function main() {
   $("panel-toggle").onclick = () => setPanelFolded(!panelFolded);
   $("types-reset").onclick = () => { settings.colors = {}; settings.shapes = {}; settings.hiddenTypes = []; update(); };
   $("table-filter").addEventListener("input", renderTable);
-  $("console-run").onclick = runConsole;
-  $("console-input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runConsole(); }
-  });
   $("reload").onclick = () => refresh(true);
   $("refresh").onchange = (e) => { store.set("kbx:refresh", Number((e.target as HTMLSelectElement).value)); scheduleRefresh(); };
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => update(false));
