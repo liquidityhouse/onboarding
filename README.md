@@ -132,6 +132,7 @@ The knowledge base exists to hold the engine that reasons and explains (kb/) and
 | `knowledge/liquidity_house/riskx.pl` | RiskX ground facts and risk rules |
 | `knowledge/liquidity_house/schema.pl` | The Liquidity House pack's domains, relations, entity types, roles and accounts |
 | `knowledge/liquidity_house/vocabulary.pl` | The Liquidity House pack's words: what its concepts, relations, people and units are called |
+| `knowledge/liquidity_house/github-commits.json` | Commits per GitHub user in each liquidityhouse repository, read from GitHub's contributors graph on 10 October 2026 with bots left out (onboarding from its git history); commits_by/3 facts |
 | `knowledge/knowledge_explorer` | The knowledge explorer described as knowledge: its components, endpoints, MCP tools, identity modes and practices, from which README.md is composed |
 | `knowledge/knowledge_explorer/explorer.pl` | The knowledge explorer and its server, described as knowledge |
 | `knowledge/knowledge_explorer/schema.pl` | The explorer pack's domain, relations and entity types: the knowledge explorer itself |

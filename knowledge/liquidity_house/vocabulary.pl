@@ -55,6 +55,7 @@ noun(software_engineer, 'Software Engineer').
 noun(team_lead, 'Team Lead').
 noun(head_of_risk, 'Head of Risk').
 noun(ceo, 'CEO').
+noun(cto, 'CTO').
 noun(compliance, 'Compliance').
 noun(management, managerial).
 noun(business, 'business stakeholder').
@@ -64,20 +65,27 @@ noun(full_name, 'full name').
 noun(slack_member_id, 'Slack member ID').
 noun(injectx_api, 'InjectX public API').
 noun(api, 'API').
+noun(github_user, 'GitHub user').
+noun(github_login, 'GitHub user').
+noun(candidate_owner, 'candidate owner').
+noun(most_commits_in_slack, 'most commits by anyone in Slack').
 noun(public_api, 'public API').
 noun(needs_access, access).
 noun(access_granted_by, person).
 noun(grants, access).
-% A person is called by their full name and job: "Adam Rybinski, Software Engineer".
+% A person is called by their full name and jobs: "Richard Larsson, Team Lead and CTO".
 noun(Person, Name) :-
     full_name(Person, Full),
-    ( works_as(Person, Job) -> noun_of(Job, JobName), format(atom(Name0), "~w, ~w", [Full, JobName]) ; Name0 = Full ),
+    findall(J, ( works_as(Person, Job), noun_of(Job, J) ), Jobs),
+    ( Jobs == [] -> Name0 = Full ; join_and(Jobs, JT), format(atom(Name0), "~w, ~w", [Full, JT]) ),
     Name = Name0.
 noun(liquidity_house, 'Liquidity House').
 
 % Relations read as "Subject Verb Object".
 verb(onboarding, includes).
 verb(helps_with, 'helps with').
+verb(commits_by, 'was committed to by').
+verb(candidate_owner, 'may be owned by').
 verb(grants, 'gives access to').
 verb(public_api, offers).
 verb(api_gateway_needs, 'has an API gateway that needs').
@@ -144,3 +152,6 @@ action(repository, clone).
 action(env_setup, 'set up').
 action(data_source, 'get access to').
 action(dashboard, 'get access to').
+
+% How extra arguments of n-ary facts attach.
+arg_verb(commits_by, 3, 'commits:').

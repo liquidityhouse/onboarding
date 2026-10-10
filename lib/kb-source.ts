@@ -28,7 +28,9 @@ export interface Kb {
 
 const sha = (text: string, n: number) => createHash("sha1").update(text).digest("hex").slice(0, n);
 
-interface Pack { dir: string; files: string[]; summary?: string; needs: string[]; text: string }
+/** A pack's data file: facts of one relation recorded from outside the repository, one per line. */
+interface DataFile { file: string; text: string; summary?: string; relation: string; facts: (string | number)[][] }
+interface Pack { dir: string; files: string[]; summary?: string; needs: string[]; data: DataFile[]; text: string }
 interface Layout { engine: string[]; packs: Pack[]; manifestText: string; sources: string[] }
 
 /**
@@ -44,9 +46,13 @@ async function layout(): Promise<Layout> {
   for (let i = 0; i < dirs.length; i++) {
     const dir = dirs[i];
     const text = await readFile(join(ROOT, dir, "pack.json"), "utf8");
-    const { files, summary, needs = [] } = JSON.parse(text) as { files: string[]; summary?: string; needs?: string[] };
+    const { files, summary, needs = [], data = [] } = JSON.parse(text) as { files: string[]; summary?: string; needs?: string[]; data?: string[] };
     for (const n of needs) if (!dirs.includes(n)) dirs.push(n);
-    packs.push({ dir, files: files.map((f) => `${dir}/${f}`), summary, needs, text });
+    const recorded = await Promise.all(data.map(async (f): Promise<DataFile> => {
+      const body = await readFile(join(ROOT, dir, f), "utf8");
+      return { file: `${dir}/${f}`, text: body, ...(JSON.parse(body) as Omit<DataFile, "file" | "text">) };
+    }));
+    packs.push({ dir, files: files.map((f) => `${dir}/${f}`), summary, needs, data: recorded, text });
   }
   return { engine: manifest.engine, packs, manifestText, sources: [...manifest.engine, ...packs.flatMap((p) => p.files)] };
 }
@@ -90,7 +96,8 @@ const SUMMARY_FILES: [dir: string, pattern: RegExp][] = [
  * engine_requirement/2, npm_script/2 and npm_script_file/2 from package.json; file_summary/2
  * from each file's header comment and each pack's summary; imports/2 from each TypeScript
  * file's runtime imports; implemented_in/2 from the code that implements each REST endpoint
- * (server.ts) and MCP tool (lib/mcp-tools.ts); keeps_state_in/2 from the override store.
+ * (server.ts) and MCP tool (lib/mcp-tools.ts); keeps_state_in/2 from the override store; and
+ * the facts in each pack's data files (pack.json "data"), recorded there from outside sources.
  * clause_source/6 holds each fact and explained rule as written, for technical readers. Each generated
  * predicate is also listed in generated_predicate/2, so the audit counts these as free;
  * generated_origin/4 says where each fact was read from, and generator_code/4 which
@@ -104,9 +111,9 @@ async function generatedFacts({ engine, packs, manifestText, sources }: Layout, 
   const facts: string[] = [];
   const generated = new Map<string, number>();
   /** A generated fact, with the place it was read from (file, first line, text) when known. */
-  const fact = (name: string, args: string[], origin?: Origin) => {
+  const fact = (name: string, args: (string | number)[], origin?: Origin) => {
     generated.set(name, args.length);
-    const term = `${name}(${args.map(atom).join(", ")})`;
+    const term = `${name}(${args.map((a) => (typeof a === "number" ? String(a) : atom(a))).join(", ")})`;
     facts.push(`${term}.`);
     if (origin) facts.push(`generated_origin(${term}, ${atom(origin.file)}, ${origin.line}, ${atom(origin.text)}).`);
   };
@@ -117,6 +124,14 @@ async function generatedFacts({ engine, packs, manifestText, sources }: Layout, 
     for (const f of p.files) fact("kb_file", [p.dir, f], jsonLine(`${p.dir}/pack.json`, p.text, "files", f.slice(p.dir.length + 1)));
   }
   for (const p of packs) for (const n of p.needs) fact("needs_pack", [p.dir, n], jsonLine(`${p.dir}/pack.json`, p.text, "needs", n));
+  // Pack data files: each line of facts becomes a fact of the file's relation, pointing back to that line.
+  for (const p of packs) {
+    for (const d of p.data) {
+      fact("kb_file", [p.dir, d.file], jsonLine(`${p.dir}/pack.json`, p.text, "data", d.file.slice(p.dir.length + 1)));
+      if (d.summary) fact("file_summary", [d.file, d.summary], keyLine(d.file, d.text, "summary"));
+      for (const row of d.facts) fact(d.relation, row, lineWith(d.file, d.text, JSON.stringify(row)));
+    }
+  }
   for (const [name, version] of Object.entries(pkg.dependencies ?? {})) fact("package_version", [name, version], inPackage("dependencies", name));
   for (const [name, version] of Object.entries(pkg.devDependencies ?? {})) fact("package_version", [name, version], inPackage("devDependencies", name));
   for (const [engine, range] of Object.entries(pkg.engines ?? {})) fact("engine_requirement", [engine, range], inPackage("engines", engine));
@@ -161,7 +176,7 @@ async function generatedFacts({ engine, packs, manifestText, sources }: Layout, 
   const self = await readFile(import.meta.filename, "utf8");
   const selfFile = relative(ROOT, import.meta.filename);
   const code = [...generated.keys()].flatMap((name) => {
-    const at = statementOf(self, name === "clause_source" ? "clause_source(${" : `fact("${name}"`);
+    const at = statementOf(self, name === "clause_source" ? "clause_source(${" : `fact("${name}"`) ?? statementOf(self, "fact(d.relation");
     return at ? [`generator_code(${name}, ${atom(selfFile)}, ${at.line}, ${atom(at.text)}).`] : [];
   });
   return [

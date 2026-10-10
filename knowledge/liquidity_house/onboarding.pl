@@ -52,6 +52,8 @@ full_name(georgi, 'Georgi Arihtev').
 full_name(dominic, 'Dominic Cortis').
 full_name(anthony, 'Anthony').
 full_name(cecilia, 'Cecilia Nüth').
+full_name(gustav, 'Gustav Genberg').
+full_name(madusha, 'Madusha Prasanjith').
 slack_member_id(adam, 'U0C757WMNAF').
 slack_member_id(richard, 'U0A1T3DP2HG').
 slack_member_id(rasmus, 'U0A30ERHKRN').
@@ -59,17 +61,30 @@ slack_member_id(georgi, 'U0B8EK1FT9U').
 slack_member_id(dominic, 'U0BTXER8R6G').
 slack_member_id(anthony, 'U0BD87PHCTY').
 slack_member_id(cecilia, 'U0B7RG2M0Q4').
+slack_member_id(gustav, 'U0A2K34AN81').
+slack_member_id(madusha, 'U0A3803TMTJ').
+
+% GitHub users, matched by the name on their GitHub profile. Commits per repository are in
+% github-commits.json (commits_by/3); users not matched here, or no longer in Slack, own nothing.
+github_login(adam, adamrybinski).
+github_login(rasmus, 'ProgracomRasmus').
+github_login(georgi, 'Arihtev').
+github_login(richard, '0xRLA').
+github_login(gustav, gustavgenberg).
+github_login(madusha, mprasanjith).
 
 % --- What each person does, and what kind of work that is ---
 works_as(adam, software_engineer).
 works_as(rasmus, software_engineer).
 works_as(georgi, software_engineer).
 works_as(richard, team_lead).
+works_as(richard, cto).
 works_as(dominic, head_of_risk).
 works_as(anthony, ceo).
 works_as(cecilia, compliance).
 job_area(software_engineer, engineering).
 job_area(team_lead, management).
+job_area(cto, management).
 job_area(head_of_risk, business).
 job_area(ceo, business).
 job_area(compliance, compliance).
@@ -179,6 +194,7 @@ riskx(agregate, metadata).
 :- dynamic(can_help_with/2).
 :- dynamic(needs_access/2).
 :- dynamic(access_granted_by/2).
+:- dynamic(candidate_owner/2).
 
 % Members of a team also belong to the organisation the team is part of.
 belongs_to(Person, Org) :-
@@ -213,6 +229,24 @@ can_help_with(Person, Item) :-
     helps_with(Person, Service),
     works_as(Person, Job),
     job_area(Job, engineering).
+can_help_with(Person, Item) :-
+    candidate_owner(Item, Person).
+can_help_with(Person, Item) :-
+    requires(Service, Item),
+    candidate_owner(Service, Person).
+
+% A repository's candidate owner: of the people still in Slack, whoever made the most of its
+% commits (two, when they made as many). Someone who left Slack is never a candidate.
+candidate_owner(Repo, Person) :-
+    most_commits_in_slack(Repo, Count),
+    commits_by(Repo, Login, Count),
+    github_login(Person, Login),
+    slack_member_id(Person, _).
+
+% The most commits any one person still in Slack made to a repository.
+most_commits_in_slack(Repo, Most) :-
+    setof(Count, Login^Person^Id^( commits_by(Repo, Login, Count), github_login(Person, Login), slack_member_id(Person, Id) ), Counts),
+    last(Counts, Most).
 
 % Reaching a service's public API takes what its cluster's API gateway needs.
 needs_access(Api, Access) :-

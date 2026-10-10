@@ -12,6 +12,8 @@ await pl.consultText(program);
 
 const out: string[] = [];
 for await (const answer of pl.query(goal, { format: "prolog" })) {
+  // The final "false." only says no more answers follow; with none at all it is added below.
+  if (String(answer) === "false.") continue;
   out.push(String(answer));
   if (out.length >= limit) {
     out.push(`… stopped after ${limit} answers`);

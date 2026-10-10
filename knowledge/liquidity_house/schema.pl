@@ -25,6 +25,7 @@ kb_predicate(grants, 2, onboarding).
 kb_predicate(full_name, 2, onboarding).
 kb_predicate(slack_member_id, 2, onboarding).
 kb_predicate(job_area, 2, onboarding).
+kb_predicate(github_login, 2, onboarding).
 kb_predicate(works_as, 2, onboarding).
 kb_predicate(reachable_in, 2, onboarding).
 kb_predicate(github_account, 2, onboarding).
@@ -69,7 +70,8 @@ derived_predicate(exposure_warning, 2, risk).
 derived_predicate(in_portfolio, 2, platform).
 derived_predicate(api_reference, 2, platform).
 derived_predicate(needs_access, 2, platform).
-derived_predicate(access_granted_by, 2, platform).
+derived_predicate(access_granted_by, 2, onboarding).
+derived_predicate(candidate_owner, 2, onboarding).
 derived_predicate(url, 2, onboarding).
 derived_predicate(sibling_repo, 2, onboarding).
 derived_predicate(belongs_to, 2, onboarding).
@@ -89,8 +91,9 @@ type_rule(E, organisation) :- catch((part_of(_, E) ; mailbox(E, _)), _, fail), !
 type_rule(E, product) :- catch(builds(_, E), _, fail), !.
 type_rule(E, workspace) :- catch(slack_client_id(E, _), _, fail), !.
 type_rule(E, channel) :- catch(slack_channel(_, E), _, fail), !.
-type_rule(E, person) :- catch((invites(E, _) ; works_as(E, _) ; member_of(E, _) ; helps_with(E, _) ; grants(E, _)), _, fail), !.
+type_rule(E, person) :- catch((invites(E, _) ; works_as(E, _) ; member_of(E, _) ; helps_with(E, _) ; grants(E, _) ; full_name(E, _)), _, fail), !.
 type_rule(E, job) :- catch(works_as(_, E), _, fail), !.
+type_rule(E, github_user) :- catch((github_login(_, E) ; commits_by(_, E, _)), _, fail), !.
 type_rule(E, work_area) :- catch(job_area(_, E), _, fail), !.
 type_rule(E, api) :- catch(public_api(_, E), _, fail), !.
 type_rule(E, jira_project) :- catch(jira_site(E, _), _, fail), !.
@@ -138,6 +141,7 @@ type_style(technology, '#63e6be', diamond).
 type_style(job, '#a9e34b', ellipse).
 type_style(work_area, '#d8f5a2', ellipse).
 type_style(api, '#22b8cf', diamond).
+type_style(github_user, '#495057', box).
 
 % --- Who sees what (developer and admin come with the explorer pack) ---
 role(risk_officer).

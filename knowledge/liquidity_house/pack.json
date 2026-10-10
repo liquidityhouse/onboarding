@@ -3,6 +3,9 @@
   "needs": [
     "knowledge/knowledge_explorer"
   ],
+  "data": [
+    "github-commits.json"
+  ],
   "files": [
     "onboarding.pl",
     "riskx.pl",

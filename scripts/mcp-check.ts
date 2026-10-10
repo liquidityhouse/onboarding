@@ -76,6 +76,15 @@ const sequence: Call[] = [
   ["query_knowledge_base", { goal: "repeat, fail" }, true, (t) => /stopped after 3 s/.test(t)],
   // …which still answers afterwards.
   ["query_knowledge_base", { goal: "daily_allowance(dope, A)" }, false, (t) => t.includes("A = 7475")],
+  // Who to ask: AWS access from Richard before Rasmus can help with the injectx API page.
+  ["query_knowledge_base", { goal: "access_granted_by(injectx_api, First), can_help_with(Then, injectx_api)" }, false,
+    (t) => JSON.parse(t).answers.join() === "First = richard, Then = rasmus."],
+  ["explain_rule_or_decision", { expression: "access_granted_by(injectx_api, Who)" }, false, (t) => /API gateway/.test(t) && /richard/.test(t)],
+  // Dominic helps with riskx as Head of Risk, not with its setup.
+  ["query_knowledge_base", { goal: "can_help_with(dominic, X)" }, false, (t) => JSON.parse(t).answers.join() === "X = riskx."],
+  // Candidate owners: most commits among people still in Slack; unmatched GitHub users never own.
+  ["query_knowledge_base", { goal: "candidate_owner(adminx, P)" }, false, (t) => JSON.parse(t).answers.length === 2],
+  ["query_knowledge_base", { goal: "candidate_owner(R, P), commits_by(R, insolencedxb, _), P \\== gustav" }, false, (t) => JSON.parse(t).answers[0] === "false."],
 ];
 
 // --- Dev identity: each call names its role in `scope` ---

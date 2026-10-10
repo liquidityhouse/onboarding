@@ -1,0 +1,32 @@
+{
+  "summary": "Commits per GitHub user in each liquidityhouse repository, read from GitHub's contributors graph on 10 October 2026 with bots left out (onboarding from its git history); commits_by/3 facts",
+  "relation": "commits_by",
+  "facts": [
+    ["injectx","gustavgenberg",450],
+    ["injectx","ProgracomRasmus",89],
+    ["injectx","mprasanjith",36],
+    ["injectx","Mikbol",16],
+    ["injectx","0xRLA",1],
+    ["payx","gustavgenberg",487],
+    ["payx","ProgracomRasmus",389],
+    ["payx","mprasanjith",31],
+    ["payx","Arihtev",25],
+    ["payx","0xRLA",2],
+    ["payx","Mikbol",1],
+    ["creditx","gustavgenberg",76],
+    ["tokenx","gustavgenberg",69],
+    ["tokenx","ProgracomRasmus",1],
+    ["riskx","gustavgenberg",37],
+    ["riskx","insolencedxb",32],
+    ["riskx","Arihtev",8],
+    ["k8s","gustavgenberg",125],
+    ["k8s","Arihtev",1],
+    ["k8s","ProgracomRasmus",1],
+    ["adminx","gustavgenberg",175],
+    ["adminx","mprasanjith",175],
+    ["adminx","ProgracomRasmus",21],
+    ["adminx","jackan214",13],
+    ["adminx","Mikbol",1],
+    ["onboarding","adamrybinski",43]
+  ]
+}
