@@ -5,7 +5,8 @@
       "name": "kb-explorer",
       "runtimeExecutable": "/Users/adam/.nvm/versions/node/v24.21.0/bin/node",
       "runtimeArgs": ["server.ts"],
-      "port": 8765
+      "port": 8765,
+      "autoPort": true
     }
   ]
 }
