@@ -20,7 +20,8 @@ interface Settings {
   hiddenPredicates: string[];
   hiddenTypes: string[];
   showValues: boolean;
-  showDerived: boolean;
+  /** Which kinds of knowledge are shown (stated, generated, derived); the audit's relation filter shares it. */
+  kinds: KnowledgeKind[];
   edgeLabels: boolean;
   sizeByDegree: boolean;
   clickRecentres: boolean;
@@ -80,6 +81,15 @@ const styleOf = (type: string): TypeStyle =>
 const colorOf = (type: string) => settings.colors[type] ?? styleOf(type).color;
 const shapeOf = (type: string) => settings.shapes[type] ?? styleOf(type).shape;
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+/** Dark or light text, whichever contrasts more with a #rrggbb background (WCAG relative luminance). */
+function inkOn(hex: string): string {
+  const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex);
+  if (!m) return "#fff";
+  const [r, g, b] = m.slice(1).map((h) => parseInt(h, 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return (l + 0.05) / 0.05 > 1.05 / (l + 0.05) ? "#111" : "#fff";
+}
 
 // --- Kinds of knowledge (stated, generated, derived): named and explained by the knowledge base ---
 const kindOf = (k: KnowledgeKind): Kind => snap.kinds.find((x) => x.id === k) ?? { id: k, label: k, hint: "" };
@@ -273,7 +283,7 @@ function defaults(s: Session): Settings {
     hiddenPredicates: [],
     hiddenTypes: [],
     showValues: s.role === "risk_officer",
-    showDerived: true,
+    kinds: ["stated", "generated", "derived"],
     edgeLabels: true,
     sizeByDegree: false,
     clickRecentres: true,
@@ -288,6 +298,10 @@ function loadSettings() {
   const s = session();
   const saved = store.get<Partial<Settings>>(`kbx:settings:${userId}`) ?? {};
   settings = { ...defaults(s), ...saved };
+  // Settings saved before kinds existed had a single "show derived" switch.
+  const legacy = saved as Partial<Settings> & { showDerived?: boolean };
+  if (!saved.kinds) settings.kinds = legacy.showDerived === false ? ["stated", "generated"] : ["stated", "generated", "derived"];
+  delete (settings as Partial<Settings> & { showDerived?: boolean }).showDerived;
   const seen = saved.seenDomains ?? saved.domains ?? s.domains;
   const fresh = s.domains.filter((d) => !seen.includes(d));
   settings.domains = [...settings.domains, ...fresh].filter((d) => s.domains.includes(d));
@@ -311,7 +325,7 @@ function scopedTriples(): Triple[] {
   const domains = new Set(settings.domains.filter((d) => session().domains.includes(d)));
   const hiddenPreds = new Set(settings.hiddenPredicates);
   return snap.triples.filter((t) =>
-    domains.has(t.domain) && !hiddenPreds.has(t.pred) && (settings.showDerived || !t.derived));
+    domains.has(t.domain) && !hiddenPreds.has(t.pred) && settings.kinds.includes(t.kind));
 }
 
 function buildGraph(): { nodes: Map<string, GraphNode>; edges: GraphEdge[] } {
@@ -419,7 +433,7 @@ function renderGraph() {
       color: { background: color, border: isFocus ? text : color, highlight: { background: color, border: text } },
       borderWidth: isFocus ? 3 : 1,
       font: {
-        color: shape === "text" ? color : LABEL_INSIDE.has(shape) ? "#fff" : text,
+        color: shape === "text" ? color : LABEL_INSIDE.has(shape) ? inkOn(color) : text,
         size: isFocus ? 16 : 13,
         bold: isFocus ? { color: text } : undefined,
         strokeWidth: LABEL_INSIDE.has(shape) ? 0 : 3,
@@ -504,9 +518,13 @@ function renderTable() {
     if (t.derived) badge.title = `${kindHint("derived")}\n${viaText(t.pred, t.via)}`;
     const why = el("button", { type: "button", className: "why", textContent: t.derived ? "why?" : "fact", title: "Show this connection in the side panel" });
     why.onclick = (e) => { e.stopPropagation(); showTriple(t); };
-    const tr = el("tr", { className: t.severity === "warning" ? "warning" : "" },
-      cell(t.s), el("td", { className: t.derived ? "derived" : "" }, t.p, " ", badge), cell(t.o), el("td", {}, domainLabel(t.domain)), el("td", {}, why));
-    tr.onclick = () => setFocus(String(t.s), false);
+    const subject = cell(t.s);
+    subject.title = `Centre on ${t.s}`;
+    subject.classList.add("centre");
+    subject.onclick = (e) => { e.stopPropagation(); setFocus(String(t.s), false); };
+    const tr = el("tr", { className: t.severity === "warning" ? "warning" : "", title: "Show this connection in the side panel" },
+      subject, el("td", { className: t.derived ? "derived" : "" }, t.p, " ", badge), cell(t.o), el("td", {}, domainLabel(t.domain)), el("td", {}, why));
+    tr.onclick = () => showTriple(t);
     return tr;
   }));
   $("triples").replaceChildren(el("thead", {}, head), body);
@@ -551,13 +569,13 @@ function renderControls() {
         can("technical") ? el("span", { className: "muted" }, `${p.id}/${p.arity}`) : "");
     }));
 
-  const bind = (id: string, key: "showValues" | "showDerived" | "edgeLabels" | "sizeByDegree" | "clickRecentres" | "physics") => {
+  const bind = (id: string, key: "showValues" | "edgeLabels" | "sizeByDegree" | "clickRecentres" | "physics") => {
     const input = $<HTMLInputElement>(id);
     input.checked = settings[key];
     input.onchange = () => { settings[key] = input.checked; update(); };
   };
   bind("opt-values", "showValues");
-  bind("opt-derived", "showDerived");
+  renderKinds();
   bind("opt-labels", "edgeLabels");
   bind("opt-degree", "sizeByDegree");
   bind("opt-recentre", "clickRecentres");
@@ -579,6 +597,23 @@ function renderControls() {
 
   renderTypes();
   renderCrumbs();
+}
+
+/** Toggles for the kinds of knowledge, with how many connections of each kind the domains in scope hold. */
+function renderKinds() {
+  const inDomains = snap.triples.filter((t) => settings.domains.includes(t.domain));
+  $("kinds").replaceChildren(...snap.kinds.map((k) => kindToggle(k.id, inDomains.filter((t) => t.kind === k.id).length, () => update())));
+}
+
+/** One kind toggle; the sidebar and the audit's relation filter both use it, on the same setting. */
+function kindToggle(kind: KnowledgeKind, count: number, after: () => void): HTMLElement {
+  const input = el("input", { type: "checkbox", checked: settings.kinds.includes(kind) });
+  input.onchange = () => {
+    settings.kinds = input.checked ? [...settings.kinds, kind] : settings.kinds.filter((x) => x !== kind);
+    save();
+    after();
+  };
+  return el("label", { title: kindHint(kind) }, input, ` ${kindOf(kind).label.toLowerCase()} `, el("span", { className: "muted" }, String(count)));
 }
 
 function renderTypes() {
@@ -613,6 +648,14 @@ function renderCrumbs() {
   $<HTMLInputElement>("focus-input").value = settings.focus ?? "";
 }
 
+/** An entity type as a coloured chip, its text dark or light for contrast. */
+function typeChip(type: string): HTMLElement {
+  const chip = el("span", { className: "type-chip", textContent: styleOf(type).label });
+  chip.style.background = colorOf(type);
+  chip.style.color = inkOn(colorOf(type));
+  return chip;
+}
+
 // --- Explanation panel: foldable; opening a detail unfolds it, refocusing does not ---
 let panelFolded = store.get<boolean>("kbx:panelFolded") ?? false;
 
@@ -640,9 +683,15 @@ async function renderExplain() {
   }
   if ((selected ?? settings.focus) !== target) return; // a newer selection won
 
-  const typeChip = el("span", { className: "type-chip", textContent: styleOf(ex.type).label });
-  typeChip.style.background = colorOf(ex.type);
-  const parts: HTMLElement[] = [el("div", { className: "ex-head" }, el("h2", { textContent: String(ex.id) }), typeChip)];
+  const parts: HTMLElement[] = [el("div", { className: "ex-head" }, el("h2", { textContent: String(ex.id) }), typeChip(ex.type))];
+  // Names that differ only in case or punctuation are different things: say so, and which.
+  if (ex.similar?.length) {
+    parts.push(el("p", { className: "similar" }, `${ex.similar_label}: `, ...ex.similar.map((x) => {
+      const b = el("button", { type: "button", className: "link", title: `Open ${x.phrase}` }, typeChip(x.type), ` ${x.id}`);
+      b.onclick = () => setFocus(x.id);
+      return b;
+    })));
+  }
 
   const actions = el("div", { className: "ex-actions" });
   if (settings.focus !== String(ex.id)) {
@@ -869,10 +918,10 @@ function auditFacts(): HTMLElement {
 /** Each relation's facts and symbols; for derived ones, what each clause derives and whether the rule pays. */
 type RelationKind = AuditRelation["kind"];
 type RelationKey = "label" | "domain" | "kind" | "facts" | "symbols" | "rule_symbols" | "saving" | "clauses";
-interface RelationView { text: string; kinds: RelationKind[]; domain: string; costly: boolean; key: RelationKey; dir: 1 | -1 }
+interface RelationView { text: string; domain: string; costly: boolean; key: RelationKey; dir: 1 | -1 }
 const KIND_ORDER: Record<RelationKind, number> = { stated: 0, generated: 1, derived: 2 };
 const relationView: RelationView = {
-  text: "", kinds: ["stated", "generated", "derived"], domain: "", costly: false, key: "kind", dir: 1,
+  text: "", domain: "", costly: false, key: "kind", dir: 1,
   ...store.get<Partial<RelationView>>("kbx:auditRelations"),
 };
 
@@ -893,12 +942,9 @@ function auditRelations(a: Audit): HTMLElement {
   const search = el("input", { type: "search", placeholder: "Filter relations…", className: "audit-filter", value: v.text });
   search.addEventListener("input", () => { v.text = search.value; remember(); draw(); });
 
-  const kindToggles = (["stated", "generated", "derived"] as RelationKind[]).map((k) => {
-    const input = el("input", { type: "checkbox", checked: v.kinds.includes(k) });
-    input.onchange = () => { v.kinds = input.checked ? [...v.kinds, k] : v.kinds.filter((x) => x !== k); remember(); draw(); };
-    const n = a.relations.filter((r) => r.kind === k).length;
-    return el("label", {}, input, ` ${k} `, el("span", { className: "muted" }, String(n)));
-  });
+  // The same kind setting as the sidebar: toggling here changes what the other views show too.
+  const kindToggles = snap.kinds.map((k) =>
+    kindToggle(k.id, a.relations.filter((r) => r.kind === k.id).length, () => { renderKinds(); draw(); }));
 
   const domains = [...new Set(a.relations.map((r) => r.domain))];
   const domain = el("select", {}, el("option", { value: "", textContent: "All domains" }),
@@ -921,7 +967,7 @@ function auditRelations(a: Audit): HTMLElement {
   function draw() {
     const q = v.text.trim().toLowerCase();
     const rows = a.relations
-      .filter((r) => v.kinds.includes(r.kind))
+      .filter((r) => settings.kinds.includes(r.kind))
       .filter((r) => !v.domain || r.domain === v.domain)
       .filter((r) => !v.costly || (r.saving ?? 0) < 0)
       .filter((r) => !q || [r.id, r.label, domainLabel(r.domain)].some((x) => x.toLowerCase().includes(q)))

@@ -53,7 +53,12 @@ export interface Line { depth: number; kind: string; text: string }
 export interface Conclusion { predicate: string; severity: string; goal: string; text: string; via: Via | null; lines: Line[] }
 /** A stated fact in words; technical roles also get where it is written. */
 export interface StatedFact { text: string; kind: KnowledgeKind; source?: Source }
-export interface Explanation extends Problem { id: string; type: string; phrase: string; facts: StatedFact[]; conclusions: Conclusion[] }
+export interface Explanation extends Problem {
+  id: string; type: string; phrase: string;
+  /** Other entities whose names differ only in case or punctuation, and what to call them. */
+  similar: { id: string; type: string; phrase: string }[]; similar_label: string;
+  facts: StatedFact[]; conclusions: Conclusion[];
+}
 
 export interface Overview extends Problem {
   role: string;

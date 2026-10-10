@@ -130,7 +130,11 @@ tr.warning td { color: var(--warn); }
 /* Explanation panel */
 .ex-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .ex-head h2 { margin: 0; font-size: 18px; word-break: break-all; }
-.type-chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; color: #fff; white-space: nowrap; }
+.type-chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; color: #fff; white-space: nowrap; font-weight: 600; }
+.similar { margin: 2px 0 8px; font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.similar button.link { display: inline-flex; align-items: center; gap: 4px; }
+.kinds { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+td.centre { cursor: zoom-in; }
 .ex-actions { display: flex; gap: 6px; margin: 8px 0 12px; flex-wrap: wrap; }
 .ex-section { margin-top: 16px; }
 .card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 8px; background: var(--surface); }

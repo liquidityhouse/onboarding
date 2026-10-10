@@ -186,9 +186,11 @@ run(_, Rest, N, N, Rest).
 % explain(E, Role): facts and explained conclusions about E within the role's domains.
 api_term(explain(E, Role), obj([id-E, problem-'not visible in this role scope'])) :-
     \+ visible(E, Role), !.
-api_term(explain(E, Role), obj([id-E, type-T, phrase-Ph, facts-arr(Fs), conclusions-arr(Cs)])) :-
+api_term(explain(E, Role), obj([id-E, type-T, phrase-Ph, similar-arr(Sim), similar_label-SL, facts-arr(Fs), conclusions-arr(Cs)])) :-
     entity_type(E, T),
     phrase_of(E, Ph),
+    findall(obj([id-X, type-XT, phrase-XP]), ( similar_entity(Role, E, X), entity_type(X, XT), phrase_of(X, XP) ), Sim),
+    label_of(similar_name, SL),
     findall(Txt-H, ( kb_predicate(P, N, D), role_domain(Role, D), functor(H, P, N),
                      catch(H, _, fail), mentions(H, E), sentence(H, Txt) ), Fs0),
     keysort(Fs0, Fs1), first_per_key(Fs1, Hs),
@@ -218,6 +220,21 @@ visible(E, Role) :-
     role_domain(Role, D),
     functor(H, P, N), between(1, N, I), arg(I, H, E),
     catch(H, _, fail), !.
+
+% Entities whose names differ only in case or punctuation (api:check, api_check) are
+% easy to mix up; the explorer names them side by side.
+similar_entity(Role, E, X) :-
+    name_key(E, K), K \== '',
+    findall(Y, ( scoped_triple(Role, t(S, _, O, _, _)), ( Y = S ; Y = O ), atom(Y), Y \== E ), Ys0),
+    sort(Ys0, Ys),
+    member(X, Ys), name_key(X, K).
+
+name_key(E, K) :-
+    atom(E), atom_codes(E, Cs),
+    findall(L, ( member(C, Cs), alnum(C), lower_code(C, L) ), Ls),
+    atom_codes(K, Ls).
+lower_code(C, L) :- C >= 0'A, C =< 0'Z, !, L is C + 32.
+lower_code(C, C).
 
 mentions(H, E) :- H =.. [_|Args], member(A, Args), A == E, !.
 
