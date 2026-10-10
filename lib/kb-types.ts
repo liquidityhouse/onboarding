@@ -70,7 +70,8 @@ export interface Change {
   /** The fact an edit replaced, in words. */
   replaces?: string;
 }
-export interface Kind { id: KnowledgeKind; label: string; hint: string }
+/** A kind of knowledge: its standard name, its meaning and other names, and (technical roles) the rules that decide it. */
+export interface Kind { id: KnowledgeKind; label: string; hint: string; rules?: { predicate: string; file: string; line: number; text: string }[] }
 export interface Triple {
   s: string | number; p: string; o: string | number;
   pred: string; domain: string; derived: boolean; kind: KnowledgeKind; severity: string;
@@ -84,7 +85,7 @@ export interface Triple {
 export interface Graph extends Problem {
   domains: Domain[]; predicates: Predicate[]; types: TypeStyle[];
   /** The kinds of knowledge, named and explained by the knowledge base. */
-  kinds: Kind[]; words: { relation: string };
+  kinds: Kind[]; words: { relation: string; warning: string };
   rules: Rule[]; entities: Entity[]; triples: Triple[];
 }
 

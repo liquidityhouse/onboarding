@@ -115,8 +115,8 @@ api_term(graph(Role), obj([problem-'unknown role'])) :- \+ role(Role), !.
 api_term(graph(Role), obj([
         domains-arr(Ds), predicates-arr(Ps), types-arr(Ts), kinds-arr(Ks), words-obj(Ws),
         rules-arr(RDs), entities-arr(Es), triples-arr(Trs)])) :-
-    kinds_json(Ks),
-    label_of(relation, RL), Ws = [relation-RL],
+    kinds_json(Role, Ks),
+    label_of(relation, RL), label_of(warning, WL), Ws = [relation-RL, warning-WL],
     findall(obj([id-D, label-L]), ( domain(D), role_domain(Role, D), label_of(D, L) ), Ds),
     findall(obj([id-P, arity-N, domain-D, label-L, derived-bool(false)]),
             ( kb_predicate(P, N, D), role_domain(Role, D), edge_label(P, L) ), Ps0),
@@ -140,8 +140,13 @@ api_term(graph(Role), obj([
     findall(obj([id-X, type-T, label-L]), ( member(X, Xs), entity_type(X, T), phrase_of(X, L) ), Es).
 
 % The kinds of knowledge, named by the lexicon and explained by their purpose.
-kinds_json(Ks) :-
-    findall(obj([id-K, label-L, hint-H]), ( knowledge_kind(K), label_of(K, L), purpose(K, P), plain(P, H) ), Ks).
+% For technical roles, also the rules that decide a fact's kind, as written.
+kinds_json(Role, Ks) :-
+    (   role_feature(Role, technical)
+    ->  findall(obj([predicate-PA, file-F, line-L, text-T]),
+                ( member(P/A, [relation_kind/2, fact_kind/2]), format(atom(PA), "~w/~w", [P, A]), catch(clause_source(P, A, _, F, L, T), _, fail) ), Rs)
+    ;   Rs = [] ),
+    findall(obj([id-K, label-L, hint-H, rules-arr(Rs)]), ( knowledge_kind(K), label_of(K, L), kind_text(K, H) ), Ks).
 
 % One rule clause: its words, its slots and, for technical roles, the clause as written.
 rule_json(Role, P, [predicate-P, clause-I, text-T, slots-arr(Ns)|Tech]) :-

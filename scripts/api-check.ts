@@ -101,6 +101,12 @@ try {
   check("risk officer sees no Prolog", !g.body.rules.some((r: object) => "source" in r || "pattern" in r)
     && !g.body.triples.some((t: { via: object | null }) => t.via && ("query" in t.via || "instance" in t.via)));
 
+  // Kinds go by their standard names, explained from facts; only technical roles see the rules behind them.
+  const kinds = (await adam("/api/graph")).body.kinds ?? [];
+  const inferred = kinds.find((k: { id: string }) => k.id === "derived");
+  check("kinds use standard names and say what else they are called", inferred?.label === "Inferred" && /Also called entailed \(in logic\), intensional \(in Datalog\)/.test(inferred.hint) && inferred.rules.length > 0, JSON.stringify(inferred).slice(0, 200));
+  check("the risk officer gets the meaning without the Prolog", (g.body.kinds ?? []).every((k: { rules: unknown[] }) => k.rules.length === 0));
+
   // Audit and optimiser: technical roles only, constraints checked against the audit.
   check("risk officer cannot audit", (await dominic("/api/audit")).status === 403);
   const au = await adam("/api/audit");
@@ -116,6 +122,8 @@ try {
     && costs.some((c: { kind: string; reason: string }) => c.kind === "implementation" && /% of the hand-written snippets/.test(c.reason))
     && au.body.totals.now >= au.body.totals.stated.symbols + au.body.totals.implementations.symbols, JSON.stringify(costs[0]).slice(0, 200));
   const measure = (id: string) => (au.body.measures ?? []).find((m: { id: string }) => m.id === id);
+  check("description length is explained in MDL terms, with the bar read as given", /L\(model\) \+ L\(data \| model\)/.test(measure("description_length")?.text) && /“given”/.test(measure("description_length").text)
+    && /part of the model/.test(measure("rules").text) && /data given the model/.test(measure("stated").text), measure("description_length")?.text?.slice(0, 160));
   check("every tile explains its measure, with its rules as written", ["stated", "rules", "lexicon", "derived", "generated", "imported", "implementations", "description_length"].every((id) => measure(id)?.text)
     && measure("implementations").rules.some((r: { text: string }) => r.text.includes("generator_cost")), JSON.stringify(measure("implementations")?.rules?.map((r: { predicate: string }) => r.predicate)));
   check("audit lists candidates with a saving and clauses", Array.isArray(au.body.candidates) && au.body.candidates.every((c: { saving: number; covers: unknown[] }) => typeof c.saving === "number" && c.covers.length > 0));

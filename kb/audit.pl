@@ -25,6 +25,8 @@
 :- dynamic(lexicon_entries/1).
 :- dynamic(facts_symbols/2).
 :- dynamic(clause_symbols/2).
+:- dynamic(mdl_total_text/2).
+:- dynamic(mdl_role/2).
 
 symbols(T, 1) :- var(T), !.
 symbols(T, 1) :- number(T), !.
@@ -421,10 +423,10 @@ api_term(audit(Role), obj([problem-'unknown role'])) :- \+ role(Role), !.
 api_term(audit(Role), obj([totals-obj(Totals), relations-arr(RJs), kinds-arr(Kinds),
                            candidates-arr(CJs), reads-arr(Reads), implementations-arr(Is), measures-arr(Ms)])) :-
     implementation_costs(Is),
-    findall(M, measure_json(M), Ms),
     audit_rels(Role, Rels),
     findall(J, ( member(R, Rels), relation_json(Rels, R, J) ), RJs),
     totals(Rels, Is, Totals),
+    findall(M, measure_json(Totals, M), Ms),
     all_candidates(Role, Rels, Cands),
     findall(S-C, ( member(C, Cands), cand_saving(C, S), S > -6 ), Scored0),
     sort(0, @>=, Scored0, Scored),
@@ -503,6 +505,35 @@ size_threshold(Sizes, Percent, T) :-
     sort(0, @=<, Sizes, Ascending), length(Ascending, N),
     K is max(1, ceiling(Percent * N / 100)), nth1(K, Ascending, T0), T = T0.
 
+% --- The audit in minimum description length terms ---
+% Description length is L(model) + L(data | model), where the bar reads "given": the length of
+% describing the data for a reader who already has the model. Each tile has its role in that sum.
+mdl_role(rules, model).
+mdl_role(lexicon, model).
+mdl_role(implementations, model).
+mdl_role(stated, data).
+mdl_role(derived, explained).
+mdl_role(generated, explained_by_code).
+mdl_role(imported, explained_by_code).
+
+% "In minimum description length terms, it is part of the model, so L(model) counts it."
+role_sentence(M, S) :-
+    mdl_role(M, R), connective(mdl_terms, In), connective(R, Phrase),
+    format(atom(S0), "~w, ~w.", [In, Phrase]), capitalise(S0, S1), S = S1.
+
+% The description length tile, with this audit's numbers.
+mdl_total_text(Totals, T) :-
+    total_of(Totals, rules, RS), total_of(Totals, lexicon, LS), total_of(Totals, implementations, CS),
+    total_of(Totals, stated, SS),
+    memberchk(now-Now, Totals), memberchk(without_rules-W, Totals),
+    Model is RS + LS + CS, Saved is W - Now,
+    noun_of(stated, SN), noun_of(derived, DN), label_of(derived, DL), noun_of(generated, GN), noun_of(imported, IN),
+    format(atom(T0), "Description length is L(model) + L(data | model). The bar | reads “given”: L(data | model) is the length of describing the data for a reader who already has the model. Here the model is the rules (~w symbols), the lexicon (~w) and the implementations (~w), ~w in all. The data given the model is what the model leaves unexplained, the ~w facts: ~w symbols. ~w, ~w and ~w facts follow from the model, so they add nothing. Without the rules every ~w fact would be ~w too, ~w symbols, so the rules save ~w.",
+           [RS, LS, CS, Model, SN, SS, DL, GN, IN, DN, SN, W, Saved]),
+    T = T0.
+
+total_of(Totals, K, S) :- memberchk(K-obj(L), Totals), memberchk(symbols-S, L).
+
 % --- What each tile of the audit counts, and the rules that count it ---
 measure_rules(stated, [kind_totals/4, symbols/2]).
 measure_rules(rules, [totals/3, clause_symbols/2]).
@@ -511,23 +542,37 @@ measure_rules(derived, [kind_totals/4]).
 measure_rules(generated, [kind_totals/4, generator_cost/2]).
 measure_rules(imported, [kind_totals/4, generator_cost/2]).
 measure_rules(implementations, [implementation_costs/1, generator_cost/2, written_cost/4, size_threshold/3]).
-measure_rules(description_length, [totals/3]).
+measure_rules(description_length, [totals/3, mdl_total_text/2, mdl_role/2]).
 
-measure_text(stated, 'Every stated fact in scope, in symbols: a name, number or variable is one symbol; a link or sentence one per word-like segment. This is what a person wrote, and what the audit tries to shrink.').
-measure_text(rules, 'The rule clauses that work facts out, in symbols. What they save is the derived facts, which would otherwise be stated.').
+% What each tile counts, worded with the kinds' names (their labels in the lexicon).
+measure_text(stated, T) :-
+    noun_of(stated, S),
+    format(atom(T0), "Every ~w fact in scope, in symbols: a name, number or variable is one symbol; a link or sentence one per word-like segment. This is what a person wrote, and what the audit tries to shrink.", [S]), T = T0.
+measure_text(rules, T) :-
+    noun_of(derived, D), noun_of(stated, S),
+    format(atom(T0), "The rule clauses that work facts out, in symbols. What they save is the ~w facts, which would otherwise be ~w.", [D, S]), T = T0.
 measure_text(lexicon, 'The words and primitives every label and explanation is built from, in symbols.').
-measure_text(derived, 'What the derived facts would cost if each were stated by hand instead of worked out by a rule.').
-measure_text(generated, 'Facts read from this repository on every load, in symbols. They are not free: they cost the code that reads them, counted under implementations.').
-measure_text(imported, 'Facts read from another system at a known time, in symbols. They cost the code that reads them, counted under implementations, and go stale until read again.').
-measure_text(description_length, 'Stated facts, rules, lexicon and implementations together: what has to be written for this knowledge. Beside it, the same with every derived fact stated instead of its rule, which shows what the rules save.').
+measure_text(derived, T) :-
+    noun_of(derived, D), noun_of(stated, S),
+    format(atom(T0), "What the ~w facts would cost if each were ~w by hand instead of worked out by a rule.", [D, S]), T = T0.
+measure_text(generated, T) :-
+    noun_of(generated, G),
+    format(atom(T0), "The ~w facts, read from this repository on every load, in symbols.", [G]), T = T0.
+measure_text(imported, T) :-
+    noun_of(imported, I),
+    format(atom(T0), "The ~w facts, read from another system at a known time, in symbols; they go stale until read again.", [I]), T = T0.
 measure_text(implementations, T) :-
     generator_band(green, G), generator_band(yellow, Y), size_band(green, VG), size_band(yellow, VY),
     format(atom(T0), "The code behind generated and imported facts and behind the capabilities, in symbols, not counting comments. Code that produces facts is green while it is at most ~w of the size of its facts, yellow up to ~w of it, and red beyond, where stating the facts would be shorter (minimum description length). Hand-written code is banded against this code base: green while no larger than ~w% of its snippets, yellow up to ~w%, red when larger (quantile thresholds, Alves, Ypma and Visser 2010).", [G, Y, VG, VY]),
     T = T0.
 
-% Each measure with its text and its rules as written (clause_source/6), for the tile's "i".
-measure_json(obj([id-M, text-T, rules-arr(Rs)])) :-
-    measure_rules(M, PAs), once(measure_text(M, T)),
+% Each measure with its text, its role in description length, and its rules as written
+% (clause_source/6), for the tile's "i".
+measure_json(Totals, obj([id-M, text-T, rules-arr(Rs)])) :-
+    measure_rules(M, PAs),
+    (   M == description_length -> mdl_total_text(Totals, T)
+    ;   once(measure_text(M, Base)),
+        ( role_sentence(M, S) -> format(atom(T0), "~w ~w", [Base, S]) ; T0 = Base ), T = T0 ),
     findall(obj([predicate-PA, file-F, line-L, text-Src]),
             ( member(P/A, PAs), format(atom(PA), "~w/~w", [P, A]), catch(clause_source(P, A, _, F, L, Src), _, fail) ), Rs).
 

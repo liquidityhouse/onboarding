@@ -307,7 +307,16 @@ function kindBadge(kind: KnowledgeKind) {
 }
 
 /** An "i" that opens the kind's meaning, as named and explained by the knowledge base. */
-const kindInfo = (kind: KnowledgeKind) => infoButton(kindOf(kind).label, kindOf(kind).hint);
+const kindInfo = (kind: KnowledgeKind) => {
+  const k = kindOf(kind);
+  return infoButton(k.label, k.hint, k.rules?.length ? () => rulesDetail(k.rules!) : undefined);
+};
+
+/** Rules as written, folded under "Technical detail", for an "i" popover. */
+function rulesDetail(rules: { predicate: string; file: string; line: number; text: string }[]): HTMLElement {
+  return el("details", { className: "prolog" }, el("summary", {}, `Technical detail · ${rules.length} rule${rules.length === 1 ? "" : "s"}`),
+    ...rules.flatMap((r) => [el("div", { className: "via-label" }, `${r.predicate} · `, el("span", { className: "path" }, `${r.file}:${r.line}`)), prolog(r.text)]));
+}
 
 // --- Info popover: opens on click or tap, closes with ×, a click outside or Escape ---
 let popover: { box: HTMLElement; anchor: HTMLElement } | null = null;
@@ -859,6 +868,7 @@ function renderControls() {
   };
   bind("opt-values", "showValues");
   renderKinds();
+  renderLegend();
   bind("opt-labels", "edgeLabels");
   bind("opt-degree", "sizeByDegree");
   bind("opt-recentre", "clickRecentres");
@@ -880,6 +890,15 @@ function renderControls() {
 
   renderTypes();
   renderCrumbs();
+}
+
+/** The edge legend, named and explained by the knowledge base: solid for asserted, dashed for inferred. */
+function renderLegend() {
+  const item = (cls: string, label: string, info: HTMLElement | string) => el("div", {}, el("i", { className: `edge-key ${cls}` }), ` ${label} `, info);
+  $("legend").replaceChildren(
+    item("stated", kindOf("stated").label, kindInfo("stated")),
+    item("derived", kindOf("derived").label, kindInfo("derived")),
+    item("warning", snap.words.warning ?? "", ""));
 }
 
 /** Toggles for the kinds of knowledge, with how many connections of each kind the domains in scope hold. */
@@ -989,7 +1008,7 @@ async function renderExplain() {
   parts.push(actions);
 
   if (ex.conclusions.length) {
-    parts.push(el("h3", { className: "ex-section", title: kindHint("derived") }, `${kindOf("derived").label} `, kindBadge("derived")));
+    parts.push(el("h3", { className: "ex-section", title: kindHint("derived") }, `${kindOf("derived").label} `, kindBadge("derived"), kindInfo("derived")));
     const bySeverity = [...ex.conclusions].sort((a, b) => Number(b.severity === "warning") - Number(a.severity === "warning"));
     for (const c of bySeverity) {
       const details = el("details", { open: c.severity === "warning" || session().role === "risk_officer" },
@@ -1004,14 +1023,14 @@ async function renderExplain() {
   }
 
   if (ex.facts.length) {
-    parts.push(el("h3", { className: "ex-section", title: kindHint("stated") }, `${kindOf("stated").label} `, kindBadge("stated")),
+    parts.push(el("h3", { className: "ex-section", title: kindHint("stated") }, `${kindOf("stated").label} `, kindBadge("stated"), kindInfo("stated")),
       el("ul", { className: "facts" }, ...ex.facts.map((f) => factLine(f.text, f.kind, f.change, f.source))));
   }
 
   // Derived connections that point at this entity (the ones above start from it).
   const incoming = scopedTriples().filter((t) => t.derived && t.o === ex.id);
   if (incoming.length) {
-    parts.push(el("h3", { className: "ex-section", title: kindHint("derived") }, `${kindOf("derived").label} connections to it `, kindBadge("derived")),
+    parts.push(el("h3", { className: "ex-section", title: kindHint("derived") }, `${kindOf("derived").label} connections to it `, kindBadge("derived"), kindInfo("derived")),
       ...incoming.map((t) => whyDetails(t)));
   }
 
@@ -1167,7 +1186,7 @@ async function renderAudit() {
     : auditTab === "implementations" ? auditImplementations(a) : auditCompression(a);
   view.replaceChildren(
     el("div", { className: "audit-head" }, el("h2", {}, "Knowledge audit"),
-      el("p", { className: "muted" }, "Description length in symbols: a name, number or variable is one symbol; a link or sentence one per word-like segment. Generated and imported facts cost the code that reads them, counted under implementations; derived facts are what the rules save.")),
+      el("p", { className: "muted" }, `Description length in symbols: a name, number or variable is one symbol; a link or sentence one per word-like segment. ${kindOf("generated").label} and ${kindOf("imported").label.toLowerCase()} facts cost the code that reads them, counted under implementations; ${kindOf("derived").label.toLowerCase()} facts are what the rules save. Each tile's i says what it counts and its part in L(model) + L(data | model).`)),
     el("div", { className: "tiles" },
       tile(kindOf("stated").label, `${t.stated.symbols}`, `${t.stated.facts} facts`, "stated"),
       tile("Rules", `${t.rules.symbols}`, `${t.rules.clauses} clauses`, "rules"),
@@ -1388,7 +1407,7 @@ function showRelation(id: string) {
   const facts = snap.triples.filter((t) => t.pred === r.id);
   const shown = facts.slice(0, 60);
   if (facts.length) {
-    parts.push(el("h3", { className: "ex-section", title: kindHint(r.kind) }, `${kindOf(r.kind).label} `, kindBadge(r.kind), ` ${facts.length}`),
+    parts.push(el("h3", { className: "ex-section", title: kindHint(r.kind) }, `${kindOf(r.kind).label} `, kindBadge(r.kind), ` ${facts.length}`, kindInfo(r.kind)),
       el("ul", { className: "facts" }, ...shown.map((t) => {
         const li = el("li", { className: "clickable", title: t.derived ? viaText(t.pred, t.via) : "Show where it is written" },
           `${t.s} → ${typeof t.o === "number" ? t.o.toLocaleString() : shortLabel(String(t.o))}`);
@@ -1408,9 +1427,7 @@ function showRelation(id: string) {
 function measureInfo(a: Audit, id: string, label: string): HTMLElement | string {
   const m = a.measures.find((x) => x.id === id);
   if (!m) return "";
-  const rules = () => el("details", { className: "prolog" }, el("summary", {}, `Technical detail · ${m.rules.length} rule${m.rules.length === 1 ? "" : "s"}`),
-    ...m.rules.flatMap((r) => [el("div", { className: "via-label" }, `${r.predicate} · `, el("span", { className: "path" }, `${r.file}:${r.line}`)), prolog(r.text)]));
-  const button = infoButton(label, m.text, m.rules.length ? rules : undefined);
+  const button = infoButton(label, m.text, m.rules.length ? () => rulesDetail(m.rules) : undefined);
   button.classList.add("tile-info");
   return button;
 }

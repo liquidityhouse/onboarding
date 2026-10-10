@@ -47,7 +47,18 @@ noun(dead_clause, 'unused rule clause').
 noun(text, description).
 noun(role_feature, feature).
 noun(url, link).
-noun(local, 'local override').
+% The kinds of knowledge go by their standard names (kb/core.pl also_called/3 lists the others).
+noun(stated, asserted).
+noun(derived, inferred).
+noun(generated, extracted).
+noun(imported, ingested).
+noun(local, draft).
+noun(datalog, 'Datalog').
+noun(logic, logic).
+noun(data_integration, 'data integration').
+noun(version_control, 'version control terms').
+noun(this_knowledge_base, 'this knowledge base''s own files').
+noun(warning, 'needs attention').
 noun(explorer, 'the explorer').
 noun(mcp, 'an agent over MCP').
 
@@ -117,6 +128,13 @@ connective(unrecorded, 'no requirements are recorded for').
 connective(exists, exists).
 connective(definite, the).
 connective(none, '—').
+connective(also_called, 'also called').
+connective(in_field, in).
+connective(mdl_terms, 'in minimum description length terms').
+connective(model, 'it is part of the model, so L(model) counts it').
+connective(data, 'it is the data given the model, L(data | model): what the model leaves unexplained and has to be written out').
+connective(explained, 'it is data the model explains, free once the rules are there, so it counts only in the comparison without rules').
+connective(explained_by_code, 'it is data explained by the code that reads it, which L(model) counts under implementations').
 connective(added_by, 'added by').
 connective(removed_by, 'removed by').
 connective(through, through).

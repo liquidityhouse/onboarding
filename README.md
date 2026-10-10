@@ -175,7 +175,7 @@ Server 'web_server' offers the MCP tools over transport 'streamable_http'. Serve
 | MCP tool | Knowledge request | Endpoint | Description |
 | --- | --- | --- | --- |
 | `get_knowledge_overview` | `overview` | `GET /api/overview` | Start here: list the domains a role can see, their relations, their entities by type, the services, and every rule in plain English |
-| `query_entity_context` | `context` | `GET /api/context/:entity` | Return the facts and derived conclusions within a few hops of one entity as triples, nearest first, with the type of every entity mentioned |
+| `query_entity_context` | `context` | `GET /api/context/:entity` | Return the facts and inferred conclusions within a few hops of one entity as triples, nearest first, with the type of every entity mentioned |
 | `verify_task_onboarding` | `verify` | `GET /api/verify/:service` | Infer everything needed to work on a service and report, for each item, what to do, its link, who can invite you, why it is needed, and whether it is done |
 | `explain_rule_or_decision` | `explain_goal` | `GET /api/explain-goal` | Prove a goal such as soft_credit_limit(dope, Limit) and return its bindings with an English trace of the facts, rules and calculations used, or describe a rule by name |
 | `query_knowledge_base` | `query` | — | Run any Prolog goal against the whole knowledge base, in a throwaway sandbox with a time limit, and list every answer; for direct exploration by developers, past the role scoping the other tools apply |
@@ -185,14 +185,14 @@ Server 'web_server' offers the MCP tools over transport 'streamable_http'. Serve
 
 ## Using the explorer
 
-- **Stated and derived**: Mark every connection as stated (solid line) or derived by a rule (dashed): hover a connection for how it is inferred, click it for why it holds.
+- **Kinds of knowledge**: Mark every connection as asserted (solid line) or inferred by a rule (dashed), and every fact with its kind of knowledge (asserted, extracted, ingested, inferred or draft), each kind explained by an i that gives its standard and other names: hover a connection for how it is inferred, click it for why it holds.
 - **Views**: Switch between the mind map, the hierarchy in four directions, the triple table and the audit.
 - **Focus**: Re-centre on an entity by clicking or searching, go back through history, and set the depth from one to five hops.
-- **Scope**: Toggle domains, single relations, derived facts, and value, link and description leaves.
+- **Scope**: Toggle domains, single relations, each kind of knowledge, and value, link and description leaves.
 - **Entity types**: Show or hide each type of entity and change its colour and shape.
 - **Per-user settings**: Remember settings for each user and start newly visible domains ticked.
 - **Shareable state**: Keep the user, view, focus and depth in the URL, so a view can be shared.
-- **Knowledge audit**: Count what is stated, generated and derived in symbols, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints, and count the code behind generated facts and capabilities in the description length, ranked by size and coloured red, yellow or green as candidates for streamlining: code that produces facts against the size of those facts (minimum description length, generator_band/2), hand-written code against this code base's own quantiles (size_band/2), each tile explaining its measure and the rules behind it.
+- **Knowledge audit**: Count what is asserted, extracted, ingested and inferred in symbols, as the model and the data given the model of minimum description length, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints, and count the code behind generated facts and capabilities in the description length, ranked by size and coloured red, yellow or green as candidates for streamlining: code that produces facts against the size of those facts (minimum description length, generator_band/2), hand-written code against this code base's own quantiles (size_band/2), each tile explaining its measure and the rules behind it.
 - **Local overrides**: Change facts here without editing the packs: paste facts or load them from a URL, edit or remove a fact from its card, and undo any change; changed facts are outlined in gold with an i saying who changed them, when and how, and the kinds filter can hide them.
 - **Setup checklist**: Tick off the steps of setting up a service, as the person picked at the top and in their role; ticks are local overrides shared with agents over MCP.
 - **Data provenance**: Show, for a fact read from outside the repository and for every conclusion resting on one, where it was read from, how and when its file was made, the script that makes it again, and the agent steps to copy to the clipboard for an agent when the script cannot run; over MCP, such explanations name the agent task to ask agent_instructions for.

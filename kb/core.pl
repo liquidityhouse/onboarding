@@ -21,6 +21,31 @@ purpose(derived, 'to work out what follows from other facts by a rule; open it t
 knowledge_kind(local).
 purpose(local, 'to try a change without editing the shared knowledge files: facts added, edited or removed here, in the explorer or by an agent over MCP, kept on this machine (state/, which git ignores) until someone writes them into a pack').
 
+% Each kind's standard name is its label (lexicon.pl); these are its other names, and where.
+% also_called(Kind, Name, Field): the same kind of knowledge, as that field calls it.
+also_called(stated, extensional, datalog).
+also_called(stated, stated, this_knowledge_base).
+also_called(derived, entailed, logic).
+also_called(derived, intensional, datalog).
+also_called(derived, derived, this_knowledge_base).
+also_called(generated, generated, this_knowledge_base).
+also_called(imported, integrated, data_integration).
+also_called(imported, imported, this_knowledge_base).
+also_called(local, 'an uncommitted assertion', version_control).
+also_called(local, 'a local override', this_knowledge_base).
+
+% A kind's meaning in words: its purpose, then its other names ("Also called extensional, in Datalog, …").
+kind_text(K, T) :-
+    purpose(K, P), plain(P, P1),
+    findall(NT, ( also_called(K, N, F), noun_of(F, FN), connective(in_field, In), format(atom(NT), "~w (~w ~w)", [N, In, FN]) ), NTs),
+    (   NTs == [] -> T = P1
+    ;   join_and(NTs, Names), connective(also_called, Also), capitalise(Also, A),
+        format(atom(T0), "~w. ~w ~w.", [P1, A, Names]), T = T0 ).
+
+% The rules that decide a fact's kind, which the explorer shows as written (clause/2 reads only dynamic predicates).
+:- dynamic(relation_kind/2).
+:- dynamic(fact_kind/2).
+
 % relation_kind(P, Kind): derived when a rule defines P, imported when another system records
 % it (imported_predicate/2), generated when the repository records it (generated_predicate/2,
 % both written with the facts by lib/kb-source.ts), stated otherwise.

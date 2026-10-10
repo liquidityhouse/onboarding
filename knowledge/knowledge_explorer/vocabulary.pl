@@ -22,6 +22,7 @@ noun(engine_requirement, 'required version').
 noun(identity_setting, setting).
 noun(streamable_http, 'Streamable HTTP (POST /mcp)').
 noun(per_user_settings, 'per-user settings').
+noun(stated_and_derived, 'kinds of knowledge').
 noun(ui, 'user interface').
 noun(knowledge, 'knowledge base').
 noun(tool, 'MCP tool').

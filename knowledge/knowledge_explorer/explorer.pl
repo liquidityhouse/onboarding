@@ -141,7 +141,7 @@ mcp_transport(web_server, streamable_http).
 registered_in(web_server, '.mcp.json').
 
 purpose(get_knowledge_overview, 'to start here: list the domains a role can see, their relations, their entities by type, the services, and every rule in plain English').
-purpose(query_entity_context, 'to return the facts and derived conclusions within a few hops of one entity as triples, nearest first, with the type of every entity mentioned').
+purpose(query_entity_context, 'to return the facts and inferred conclusions within a few hops of one entity as triples, nearest first, with the type of every entity mentioned').
 purpose(verify_task_onboarding, 'to infer everything needed to work on a service and report, for each item, what to do, its link, who can invite you, why it is needed, and whether it is done').
 purpose(query_knowledge_base, 'to run any Prolog goal against the whole knowledge base, in a throwaway sandbox with a time limit, and list every answer; for direct exploration by developers, past the role scoping the other tools apply').
 purpose(record_progress, 'to mark the steps of setting up a service done or not done for a person, as local completed/2 facts, so their progress shows at once in the explorer and in verify_task_onboarding; marking every step not done resets the service for a run from scratch').
@@ -162,13 +162,13 @@ offers(explorer_ui, local_overrides).
 offers(explorer_ui, setup_checklist).
 offers(explorer_ui, data_provenance).
 
-purpose(stated_and_derived, 'to mark every connection as stated (solid line) or derived by a rule (dashed): hover a connection for how it is inferred, click it for why it holds').
+purpose(stated_and_derived, 'to mark every connection as asserted (solid line) or inferred by a rule (dashed), and every fact with its kind of knowledge (asserted, extracted, ingested, inferred or draft), each kind explained by an i that gives its standard and other names: hover a connection for how it is inferred, click it for why it holds').
 purpose(views, 'to switch between the mind map, the hierarchy in four directions, the triple table and the audit').
 purpose(focus, 'to re-centre on an entity by clicking or searching, go back through history, and set the depth from one to five hops').
-purpose(scope, 'to toggle domains, single relations, derived facts, and value, link and description leaves').
+purpose(scope, 'to toggle domains, single relations, each kind of knowledge, and value, link and description leaves').
 purpose(entity_types, 'to show or hide each type of entity and change its colour and shape').
 purpose(per_user_settings, 'to remember settings for each user and start newly visible domains ticked').
-purpose(knowledge_audit, 'to count what is stated, generated and derived in symbols, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints, and count the code behind generated facts and capabilities in the description length, ranked by size and coloured red, yellow or green as candidates for streamlining: code that produces facts against the size of those facts (minimum description length, generator_band/2), hand-written code against this code base''s own quantiles (size_band/2), each tile explaining its measure and the rules behind it').
+purpose(knowledge_audit, 'to count what is asserted, extracted, ingested and inferred in symbols, as the model and the data given the model of minimum description length, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints, and count the code behind generated facts and capabilities in the description length, ranked by size and coloured red, yellow or green as candidates for streamlining: code that produces facts against the size of those facts (minimum description length, generator_band/2), hand-written code against this code base''s own quantiles (size_band/2), each tile explaining its measure and the rules behind it').
 purpose(local_overrides, 'to change facts here without editing the packs: paste facts or load them from a URL, edit or remove a fact from its card, and undo any change; changed facts are outlined in gold with an i saying who changed them, when and how, and the kinds filter can hide them').
 purpose(data_provenance, 'to show, for a fact read from outside the repository and for every conclusion resting on one, where it was read from, how and when its file was made, the script that makes it again, and the agent steps to copy to the clipboard for an agent when the script cannot run; over MCP, such explanations name the agent task to ask agent_instructions for').
 purpose(setup_checklist, 'to tick off the steps of setting up a service, as the person picked at the top and in their role; ticks are local overrides shared with agents over MCP').
