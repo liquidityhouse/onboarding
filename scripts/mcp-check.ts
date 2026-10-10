@@ -35,7 +35,7 @@ const calls: [string, Record<string, unknown>, boolean, ((text: string) => boole
   ["query_knowledge_base", { goal: "operator(nobody, S)" }, false, (t) => JSON.parse(t).answers[0] === "false."],
   ["query_knowledge_base", { goal: "soft_credit_limit(Op, Limit)", scope: "risk_officer" }, true, (t) => /not available/.test(t)],
   // Contained: halt/0 and a runaway goal end the worker, not the server…
-  ["query_knowledge_base", { goal: "halt" }, true, (t) => /Query stopped/.test(t)],
+  ["query_knowledge_base", { goal: "halt" }, false, (t) => JSON.parse(t).answers[0] === "false."],
   ["query_knowledge_base", { goal: "repeat, fail" }, true, (t) => /stopped after 3 s/.test(t)],
   // …which still answers afterwards.
   ["query_knowledge_base", { goal: "daily_allowance(dope, A)" }, false, (t) => t.includes("A = 7475")],

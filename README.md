@@ -29,9 +29,9 @@ graph LR
   n3 --> n15
   n3 --> n14
   n15 --> n4
-  n15 --> n11
   n15 --> n9
   n8 --> n4
+  n8 --> n11
   n8 --> n0
   n4 --> n5
   n4 --> n10
@@ -54,12 +54,12 @@ graph LR
 | `kb_service` | module | Node.js | `lib/kb-service.ts` | The one live engine both servers share, rebuilt when the KB files change, with answers cached per KB version |
 | `kb_source` | module | Node.js | `lib/kb-source.ts` | The single knowledge source: the KB files in kb/manifest.json joined into one program, plus facts generated from what the repository already records, versioned by content hash |
 | `prolog_engine` | module | Node.js | `lib/prolog.ts` | Trealla Prolog (WASM) engine wrapper: consults the KB program and runs api/1 requests |
-| `query_sandbox` | module | Node.js | `lib/sandbox.ts` and `lib/query-worker.ts` | Free-form queries (the explorer's Query view) run in a throwaway worker with a time limit, so a runaway goal or halt/0 cannot block or kill the shared engine |
+| `query_sandbox` | module | Node.js | `lib/sandbox.ts` and `lib/query-worker.ts` | Free-form queries (the MCP query_knowledge_base tool) run in a throwaway worker with a time limit, so a runaway goal or halt/0 cannot block or kill the shared engine |
 | `kb_types` | module | Node.js | `lib/kb-types.ts` | Shapes of the JSON the knowledge base answers with (kb/api.pl) |
 | `optimiser` | module | Node.js | `lib/optimiser.ts` and `kb/plan.lp` | Chooses which compression candidates to apply: kb/plan.lp, solved by clingo, finds the set that saves the most symbols within the asker's constraints, then the next best ones |
 | `knowledge_base` | knowledge base | — | — | Hold every fact and rule, the vocabulary explanations are built from, and the requests the servers ask |
 | `api_check` | script | Node.js | `scripts/api-check.ts` | End-to-end check of the REST endpoints and their role scoping |
-| `mcp_check` | script | Node.js | `scripts/mcp-check.ts` | Smoke test for the MCP server over real stdio: lists the tools, then walks the discover → focus → verify → explain sequence an agent would follow |
+| `mcp_check` | script | Node.js | `scripts/mcp-check.ts` | Smoke test for the MCP server over real stdio: lists the tools, then walks the discover → focus → verify → explain sequence an agent would follow, and checks that free-form queries are answered, refused outside their role and contained in the sandbox |
 | `code_export` | script | Node.js | `scripts/export-code.ts` | Bundles all application source into export/_code.txt for sharing as a single file |
 | `readme_builder` | script | Node.js | `scripts/readme.ts` | Composes README.md from the knowledge base: every heading, sentence and table cell comes from kb/*.pl |
 
@@ -79,7 +79,7 @@ npm start
 | `npm run typecheck` | `tsc --noEmit` | Type-check the servers, the explorer and the scripts |
 | `npm run export` | `node scripts/export-code.ts` | Bundles all application source into export/_code.txt for sharing as a single file |
 | `npm run mcp` | `node mcp-server.ts` | MCP server: progressive access to the liquidity.house knowledge base for AI agents |
-| `npm run mcp:check` | `node scripts/mcp-check.ts` | Smoke test for the MCP server over real stdio: lists the tools, then walks the discover → focus → verify → explain sequence an agent would follow |
+| `npm run mcp:check` | `node scripts/mcp-check.ts` | Smoke test for the MCP server over real stdio: lists the tools, then walks the discover → focus → verify → explain sequence an agent would follow, and checks that free-form queries are answered, refused outside their role and contained in the sandbox |
 | `npm run api:check` | `node scripts/api-check.ts` | End-to-end check of the REST endpoints and their role scoping |
 | `npm run readme` | `node scripts/readme.ts` | Composes README.md from the knowledge base: every heading, sentence and table cell comes from kb/*.pl |
 | `npm run readme:check` | `node scripts/readme.ts --check` | Fail when README.md differs from what the knowledge base would generate, for use in CI |
@@ -128,7 +128,6 @@ The knowledge base exists to hold every fact and rule, the vocabulary explanatio
 | `GET /api/context/:entity` | `signed_in` | `context` | `query_entity_context` |
 | `GET /api/verify/:service` | `signed_in` | `verify` | `verify_task_onboarding` |
 | `GET /api/explain-goal` | `signed_in` | `explain_goal` | `explain_rule_or_decision` |
-| `POST /api/query` | `console` | — | — |
 | `GET /api/kb` | `technical` | — | — |
 | `GET /api/kb.pl` | `technical` | — | — |
 | `GET /api/audit` | `technical` | `audit` | — |
@@ -144,11 +143,12 @@ Server 'mcp_server' is registered for Claude Code in .mcp.json.
 | `query_entity_context` | `context` | `GET /api/context/:entity` | Return the facts and derived conclusions within a few hops of one entity as triples, nearest first, with the type of every entity mentioned |
 | `verify_task_onboarding` | `verify` | `GET /api/verify/:service` | Infer everything needed to work on a service and report, for each item, what to do, its link, who can invite you, why it is needed, and whether it is done |
 | `explain_rule_or_decision` | `explain_goal` | `GET /api/explain-goal` | Prove a goal such as soft_credit_limit(dope, Limit) and return its bindings with an English trace of the facts, rules and calculations used, or describe a rule by name |
+| `query_knowledge_base` | `query` | — | Run any Prolog goal against the whole knowledge base, in a throwaway sandbox with a time limit, and list every answer; for direct exploration by developers, past the role scoping the other tools apply |
 
 ## Using the explorer
 
 - **Stated and derived**: Mark every connection as stated (solid line) or derived by a rule (dashed): hover a connection for how it is inferred, click it for why it holds.
-- **Views**: Switch between the mind map, the hierarchy in four directions, the triple table and the query console.
+- **Views**: Switch between the mind map, the hierarchy in four directions, the triple table and the audit.
 - **Focus**: Re-centre on an entity by clicking or searching, go back through history, and set the depth from one to five hops.
 - **Scope**: Toggle domains, single relations, derived facts, and value, link and description leaves.
 - **Entity types**: Show or hide each type of entity and change its colour and shape.
