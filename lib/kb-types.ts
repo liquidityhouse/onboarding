@@ -15,7 +15,12 @@ export interface Predicate { id: string; arity: number; domain: string; label: s
 export interface TypeStyle { id: string; label: string; color: string; shape: string }
 /** One clause of a rule: its words, its slots (variables, named after concepts) and, for technical roles, the clause. */
 /** Where a clause is written; a generated fact names the module that generates it instead of a line. */
-export interface Source { file: string; line?: number; text: string; generated?: boolean }
+export interface Snippet { label: string; file: string; line: number; text: string }
+export interface Source {
+  file: string; line?: number; text: string; generated?: boolean;
+  /** Generated facts: where the fact was read from, and the code that generated it. */
+  origin?: Snippet; generator?: Snippet;
+}
 export interface Rule {
   predicate: string; clause: number; text: string; slots: string[];
   /** Technical roles: the clause as written in its file… */

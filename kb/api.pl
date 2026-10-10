@@ -156,10 +156,18 @@ fact_source(G, obj([file-F, line-L, text-T])) :-
     catch(clause_source(P, A, _, F, L, T), _, fail),
     catch(read_term_from_atom(T, G1, []), _, fail),
     G1 == G, !.
-fact_source(G, obj([file-F, generated-bool(true), text-T])) :-
+fact_source(G, obj([file-F, generated-bool(true), text-T|More])) :-
     functor(G, P, A), catch(generated_predicate(P, A), _, fail),
     source_file(kb_source, F), !,
-    format(atom(T0), "~q.", [G]), T = T0.
+    format(atom(T0), "~q.", [G]), T = T0,
+    findall(K-J, generation(G, P, K, J), More).
+
+% Where a generated fact was read from (generated_origin/4) and the code that generated
+% it (generator_code/4), both written by the generator itself.
+generation(G, _, origin, obj([label-L, file-F, line-N, text-T])) :-
+    once(catch(generated_origin(G, F, N, T), _, fail)), label_of(generated_origin, L).
+generation(_, P, generator, obj([label-L, file-F, line-N, text-T])) :-
+    once(catch(generator_code(P, F, N, T), _, fail)), label_of(generator_code, L).
 
 % A stated fact's source, for technical roles.
 stated_source(Role, G, [source-J]) :- role_feature(Role, technical), fact_source(G, J), !.
