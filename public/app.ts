@@ -228,7 +228,7 @@ const whereWritten = (src: Source) =>
  */
 function sourceDetail(src: Source, summary?: string): HTMLElement {
   const snippet = (s: Snippet) => [
-    el("div", { className: "via-label" }, `${s.label} · ${s.file}:${s.line}`), codeBlock(s.text, languageOf(s.file))];
+    el("div", { className: "via-label" }, `${s.label} · `, el("span", { className: "path" }, `${s.file}:${s.line}`)), codeBlock(s.text, languageOf(s.file))];
   return el("details", { className: "prolog" },
     el("summary", { title: "Show where this fact is written" }, summary ?? `Technical detail · ${whereWritten(src)}`),
     ...(summary ? [el("div", { className: "via-label" }, `Technical detail · ${whereWritten(src)}`)] : []),

@@ -182,6 +182,7 @@ td button.why { font-size: 11px; padding: 1px 6px; }
 .via { margin: 6px 0; }
 .via-label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 6px; }
 .edge-tip .via-label { color: #6b7280; }
+.via-label .path { text-transform: none; letter-spacing: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .rule-text { color: var(--accent); margin-top: 2px; }
 .edge-tip .rule-text { color: #364fc7; }
 .slot { font-style: italic; border: 1px dashed currentColor; border-radius: 4px; padding: 0 3px; white-space: nowrap; }
