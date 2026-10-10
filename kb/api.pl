@@ -108,8 +108,10 @@ api_term(users, obj([users-arr(Us)])) :-
 % graph(Role): everything the explorer draws, limited to the role's domains.
 api_term(graph(Role), obj([problem-'unknown role'])) :- \+ role(Role), !.
 api_term(graph(Role), obj([
-        domains-arr(Ds), predicates-arr(Ps), types-arr(Ts),
+        domains-arr(Ds), predicates-arr(Ps), types-arr(Ts), kinds-arr(Ks), words-obj(Ws),
         rules-arr(RDs), entities-arr(Es), triples-arr(Trs)])) :-
+    kinds_json(Ks),
+    label_of(relation, RL), Ws = [relation-RL],
     findall(obj([id-D, label-L]), ( domain(D), role_domain(Role, D), label_of(D, L) ), Ds),
     findall(obj([id-P, arity-N, domain-D, label-L, derived-bool(false)]),
             ( kb_predicate(P, N, D), role_domain(Role, D), edge_label(P, L) ), Ps0),
@@ -121,15 +123,20 @@ api_term(graph(Role), obj([
             ( derived_predicate(P, _, D), role_domain(Role, D), rule_json(Role, P, RJ) ), RDs),
     findall(T, scoped_triple(Role, T), Raw0),
     counted(Raw0, Raw),   % a conclusion reached two ways is still one edge; W counts the ways
-    findall(obj([s-S, p-L, o-O, pred-P, domain-D, derived-bool(B), severity-Sv, ways-W, via-Via]),
+    findall(obj([s-S, p-L, o-O, pred-P, domain-D, derived-bool(B), kind-RK, severity-Sv, ways-W, via-Via]),
             ( member(t(S, L, O, P, K)-W, Raw),
               pred_domain(P, D),
               G =.. [P, S, O], severity(G, Sv),
+              relation_kind(P, RK),
               ( K == derived -> B = true, via_of(Role, G, Via) ; B = false, Via = null ) ),
             Trs),
     findall(X, ( member(t(S, _, O, _, _)-_, Raw), ( X = S ; X = O ), atom(X) ), Xs0),
     sort(Xs0, Xs),
     findall(obj([id-X, type-T, label-L]), ( member(X, Xs), entity_type(X, T), phrase_of(X, L) ), Es).
+
+% The kinds of knowledge, named by the lexicon and explained by their purpose.
+kinds_json(Ks) :-
+    findall(obj([id-K, label-L, hint-H]), ( knowledge_kind(K), label_of(K, L), purpose(K, P), plain(P, H) ), Ks).
 
 % One rule clause: its words, its slots and, for technical roles, the clause as written.
 rule_json(Role, P, [predicate-P, clause-I, text-T, slots-arr(Ns)|Tech]) :-
@@ -185,7 +192,7 @@ api_term(explain(E, Role), obj([id-E, type-T, phrase-Ph, facts-arr(Fs), conclusi
     findall(Txt-H, ( kb_predicate(P, N, D), role_domain(Role, D), functor(H, P, N),
                      catch(H, _, fail), mentions(H, E), sentence(H, Txt) ), Fs0),
     keysort(Fs0, Fs1), first_per_key(Fs1, Hs),
-    findall(obj([text-Txt|Src]), ( member(H, Hs), sentence(H, Txt), stated_source(Role, H, Src) ), Fs),
+    findall(obj([text-Txt, kind-K|Src]), ( member(H, Hs), sentence(H, Txt), functor(H, P, _), relation_kind(P, K), stated_source(Role, H, Src) ), Fs),
     findall(GA-obj([predicate-P, severity-Sv, goal-GA, text-Txt, via-Via, lines-arr(Ls)]),
             ( derived_predicate(P, 2, D), role_domain(Role, D),
               G =.. [P, E, _],
@@ -384,11 +391,12 @@ explain_parsed(Text, G, Vs, Max, Role, J) :-
     first_per_key(Keyed, Sols0),   % one answer per distinct conclusion
     length(Sols0, N),
     take(Max, Sols0, Sols),
-    findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), via-Via, explanation-X, lines-arr(Ls)|Src]),
+    findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), kind-AK, via-Via, explanation-X, lines-arr(Ls)|Src]),
             ( member(Vs1-G1-P1, Sols),
               findall(Name-Val, member(Name=Val, Vs1), Bs),
               sentence(G1, T), severity(G1, Sv), via_json(Role, P1, Via),
               ( P1 = rule(_, true, _, _) -> Dv = false, stated_source(Role, G1, Src) ; Dv = true, Src = [] ),
+              ( Dv == true -> AK = derived ; functor(G1, GP, _), relation_kind(GP, AK) ),
               once(proof_lines(P1, 0, Lines)), lines_text(Lines, X),
               findall(obj([depth-D, kind-K, text-LT]), member(line(D, K, LT), Lines), Ls) ),
             Answers),

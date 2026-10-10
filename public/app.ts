@@ -3,7 +3,8 @@
 
 import { DataSet, Network, type Edge, type Node as VisNode, type Options } from "vis-network/standalone";
 import type {
-  Audit, AuditRelation, Candidate, Explanation, GoalExplanation, Graph, Line, Plan, Rule, Session, SessionInfo, Source, Triple, TypeStyle, Via,
+  Audit, AuditRelation, Candidate, Explanation, GoalExplanation, Graph, Kind, KnowledgeKind, Line, Plan, Rule, Session, SessionInfo,
+  Source, Triple, TypeStyle, Via,
 } from "../lib/kb-types.ts";
 
 type View = "mindmap" | "hierarchy" | "table" | "console" | "audit";
@@ -80,9 +81,9 @@ const colorOf = (type: string) => settings.colors[type] ?? styleOf(type).color;
 const shapeOf = (type: string) => settings.shapes[type] ?? styleOf(type).shape;
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-// --- Stated vs derived ---
-const DERIVED_HINT = "Derived: inferred by a rule, not stated. Open it to see how (the rule) and why (the facts and calculations it used).";
-const STATED_HINT = "Stated: written in the knowledge base as a fact.";
+// --- Kinds of knowledge (stated, generated, derived): named and explained by the knowledge base ---
+const kindOf = (k: KnowledgeKind): Kind => snap.kinds.find((x) => x.id === k) ?? { id: k, label: k, hint: "" };
+const kindHint = (k: KnowledgeKind) => { const i = kindOf(k); return `${i.label}: ${i.hint}`; };
 const LITERAL_TYPES = new Set(["value", "url", "text"]);
 
 /** The rule clauses behind a derived relation: the "how". */
@@ -216,12 +217,8 @@ function viaText(pred: string, via: Via | null | undefined): string {
   return `How: ${rule.text}\nHere: ${via.bindings.map((b) => `${b.name} = ${b.value}`).join(", ")}`;
 }
 
-function kindBadge(derived: boolean) {
-  return el("span", {
-    className: `kind-badge ${derived ? "derived" : "stated"}`,
-    textContent: derived ? "derived" : "stated",
-    title: derived ? DERIVED_HINT : STATED_HINT,
-  });
+function kindBadge(kind: KnowledgeKind) {
+  return el("span", { className: `kind-badge ${kind}`, textContent: kindOf(kind).label.toLowerCase(), title: kindHint(kind) });
 }
 
 /** A Prolog literal for a goal sent to /api/explain-goal (parsed there, never run as code). */
@@ -257,7 +254,7 @@ const ruleShown = (lines: Line[], via: Via | null | undefined) => (via && lines[
 
 /** Tooltip for an edge: stated, or derived with the rule clause that made it and its slot values. */
 function edgeTitle(t: Triple): HTMLElement {
-  const box = el("div", { className: "edge-tip" }, el("strong", {}, t.derived ? "Derived" : "Stated fact"), ` · ${t.p}`);
+  const box = el("div", { className: "edge-tip" }, el("strong", {}, kindOf(t.kind).label), ` · ${t.p}`);
   if (t.derived) {
     box.append(viaBlock(t.pred, t.via, true));
     if (t.ways > 1) box.append(el("div", { className: "muted" }, `Also follows ${t.ways - 1} other way${t.ways > 2 ? "s" : ""}.`));
@@ -503,8 +500,8 @@ function renderTable() {
     return el("td", {}, c, typeof v === "number" ? v.toLocaleString() : v);
   };
   const body = el("tbody", {}, ...rows.map((t) => {
-    const badge = kindBadge(t.derived);
-    if (t.derived) badge.title = `${DERIVED_HINT}\n${viaText(t.pred, t.via)}`;
+    const badge = kindBadge(t.kind);
+    if (t.derived) badge.title = `${kindHint("derived")}\n${viaText(t.pred, t.via)}`;
     const why = el("button", { type: "button", className: "why", textContent: t.derived ? "why?" : "fact", title: "Show this connection in the side panel" });
     why.onclick = (e) => { e.stopPropagation(); showTriple(t); };
     const tr = el("tr", { className: t.severity === "warning" ? "warning" : "" },
@@ -659,7 +656,7 @@ async function renderExplain() {
   parts.push(actions);
 
   if (ex.conclusions.length) {
-    parts.push(el("h3", { className: "ex-section", title: DERIVED_HINT }, "Derived ", kindBadge(true)));
+    parts.push(el("h3", { className: "ex-section", title: kindHint("derived") }, `${kindOf("derived").label} `, kindBadge("derived")));
     const bySeverity = [...ex.conclusions].sort((a, b) => Number(b.severity === "warning") - Number(a.severity === "warning"));
     for (const c of bySeverity) {
       const details = el("details", { open: c.severity === "warning" || session().role === "risk_officer" },
@@ -669,14 +666,14 @@ async function renderExplain() {
   }
 
   if (ex.facts.length) {
-    parts.push(el("h3", { className: "ex-section", title: STATED_HINT }, "Stated ", kindBadge(false)),
+    parts.push(el("h3", { className: "ex-section", title: kindHint("stated") }, `${kindOf("stated").label} `, kindBadge("stated")),
       el("ul", { className: "facts" }, ...ex.facts.map((f) => el("li", {}, f.source ? sourceDetail(f.source, f.text) : f.text))));
   }
 
   // Derived connections that point at this entity (the ones above start from it).
   const incoming = scopedTriples().filter((t) => t.derived && t.o === ex.id);
   if (incoming.length) {
-    parts.push(el("h3", { className: "ex-section", title: DERIVED_HINT }, "Derived connections to it ", kindBadge(true)),
+    parts.push(el("h3", { className: "ex-section", title: kindHint("derived") }, `${kindOf("derived").label} connections to it `, kindBadge("derived")),
       ...incoming.map((t) => whyDetails(t)));
   }
 
@@ -690,7 +687,7 @@ async function renderExplain() {
     parts.push(el("h3", { className: "ex-section" }, "Connected"),
       el("div", { className: "neighbours" }, ...[...neighbours].map(([n, derivedOnly]) => {
         const b = el("button", { type: "button", textContent: shortLabel(n), className: derivedOnly ? "derived" : "",
-          title: derivedOnly ? `Connected only through derived facts. ${DERIVED_HINT}` : "Connected through stated facts" });
+          title: derivedOnly ? `Connected only through derived facts. ${kindHint("derived")}` : "Connected through stated facts" });
         b.style.borderColor = colorOf(typeOf(n));
         b.onclick = () => setFocus(n);
         return b;
@@ -715,14 +712,14 @@ function whyDetails(t: Triple): HTMLElement {
 /** How (rule) and why (proof) for one connection, from /api/explain-goal. */
 async function whyBody(t: Triple): Promise<HTMLElement> {
   const goal = goalOf(t);
-  if (!goal) return el("p", { className: "muted" }, t.derived ? "This connection cannot be explained here." : STATED_HINT);
+  if (!goal) return el("p", { className: "muted" }, t.derived ? "This connection cannot be explained here." : kindHint(t.kind));
   try {
     const ex = await api<GoalExplanation>(`/api/explain-goal?expression=${encodeURIComponent(goal)}&max=1`);
     const a = ex.answers?.[0];
     if (!a) return el("p", { className: "muted" }, "This connection no longer holds.");
     const box = el("div", {}, el("div", { className: "headline", textContent: a.text }));
     if (!a.derived) {
-      box.append(el("p", { className: "muted" }, STATED_HINT));
+      box.append(el("p", { className: "muted" }, kindHint(a.kind ?? t.kind)));
       if (a.source) box.append(sourceDetail(a.source));
       return box;
     }
@@ -748,9 +745,13 @@ async function showTriple(t: Triple) {
     focusO.onclick = () => setFocus(String(t.o));
     actions.append(focusO);
   }
-  const head = el("div", { className: "ex-head" }, el("h2", { textContent: t.p }), kindBadge(t.derived));
+  // The heading is the fact itself (subject, relation, object); the relation alone is not a fact.
+  const object = typeof t.o === "number" ? t.o.toLocaleString() : shortLabel(String(t.o));
+  const head = el("div", { className: "ex-head" }, el("h2", { textContent: `${t.s} ${t.p} ${object}` }), kindBadge(t.kind));
+  const relation = el("p", { className: "muted relation-line", title: kindHint(t.kind) }, `${snap.words.relation}: `, t.p,
+    can("technical") ? el("span", {}, ` (${t.pred})`) : "", ` · ${kindOf(t.kind).label.toLowerCase()}`);
   const others = t.derived ? rulesFor(t.pred).filter((r) => r.clause !== t.via?.rule) : [];
-  const parts: HTMLElement[] = [head, actions];
+  const parts: HTMLElement[] = [head, relation, actions];
   if (t.derived && t.ways > 1) {
     parts.push(el("p", { className: "muted" }, `This connection follows ${t.ways} ways; the first is explained.`));
   }
@@ -825,11 +826,11 @@ async function renderAudit() {
     el("div", { className: "audit-head" }, el("h2", {}, "Knowledge audit"),
       el("p", { className: "muted" }, "Description length in symbols: a name, number or variable is one symbol; a link or sentence one per word-like segment. Generated facts are free; derived facts are what the rules save.")),
     el("div", { className: "tiles" },
-      tile("Stated", `${t.stated.symbols}`, `${t.stated.facts} facts, written by hand`),
+      tile(kindOf("stated").label, `${t.stated.symbols}`, `${t.stated.facts} facts`, kindHint("stated")),
       tile("Rules", `${t.rules.symbols}`, `${t.rules.clauses} clauses`),
       tile("Lexicon", `${t.lexicon.symbols}`, `${t.lexicon.entries} words and primitives`),
-      tile("Derived", `${t.derived.symbols}`, `${t.derived.facts} facts, if they were stated`),
-      tile("Generated", `${t.generated.symbols}`, `${t.generated.facts} facts, free`, "Recorded by the repository (manifest, package.json, file headers) and generated, so they cost nothing to write"),
+      tile(kindOf("derived").label, `${t.derived.symbols}`, `${t.derived.facts} facts, if they were stated`, kindHint("derived")),
+      tile(kindOf("generated").label, `${t.generated.symbols}`, `${t.generated.facts} facts, free`, kindHint("generated")),
       tile("Description length", `${t.now}`, `${t.without_rules} without rules: rules save ${saved} (${Math.round((saved / t.without_rules) * 100)}%)`, "Stated + rules + lexicon, against stated + derived + lexicon")),
     tabs, body);
 }
@@ -846,11 +847,11 @@ function auditFacts(): HTMLElement {
       const groups = new Map<string, Triple[]>();
       for (const t of mine) (groups.get(t.p) ?? groups.set(t.p, []).get(t.p)!).push(t);
       return el("div", { className: "fact-column" },
-        el("h3", { className: "ex-section" }, derived ? "Derived " : "Stated ", kindBadge(derived), ` ${mine.length}`),
+        el("h3", { className: "ex-section", title: kindHint(derived ? "derived" : "stated") }, `${kindOf(derived ? "derived" : "stated").label} `, kindBadge(derived ? "derived" : "stated"), ` ${mine.length}`),
         ...[...groups].sort((x, y) => y[1].length - x[1].length).map(([p, ts]) =>
           el("details", { className: "fact-group", open: groups.size <= 6 }, el("summary", {}, `${p} `, el("span", { className: "muted" }, String(ts.length))),
             el("ul", { className: "fact-list" }, ...ts.map((t) => {
-              const li = el("li", { title: t.derived ? viaText(t.pred, t.via) : STATED_HINT },
+              const li = el("li", { title: t.derived ? viaText(t.pred, t.via) : kindHint(t.kind) },
                 `${t.s} → ${typeof t.o === "number" ? t.o.toLocaleString() : shortLabel(String(t.o))}`);
               if (t.via) li.append(el("span", { className: "rule-chip" }, `rule ${t.via.rule}`));
               if (t.ways > 1) li.append(el("span", { className: "muted" }, ` ×${t.ways}`));
@@ -911,7 +912,7 @@ function auditRelations(a: Audit): HTMLElement {
   const summary = el("p", { className: "muted relation-summary" });
   const table = el("table", {});
   const columns: [RelationKey, string, string][] = [
-    ["label", "Relation", ""], ["domain", "Domain", ""], ["kind", "Kind", "Stated by hand, generated from the repository, or derived by a rule"],
+    ["label", snap.words.relation, ""], ["domain", "Domain", ""], ["kind", "Kind", snap.kinds.map((k) => `${k.label}: ${k.hint}`).join("\n")],
     ["facts", "Facts", ""], ["symbols", "Symbols", "What its facts cost; for a derived relation, what they would cost if stated"],
     ["rule_symbols", "Rule symbols", "What its rule clauses cost"], ["saving", "Saves", "Symbols its facts would cost minus its rule's symbols"],
     ["clauses", "Clauses", "What each clause derives"],
@@ -964,7 +965,7 @@ function relationRow(r: AuditRelation): HTMLElement {
   const tr = el("tr", { className: `clickable ${r.id === selectedRelation ? "selected" : ""}`, title: "Show this relation in the explanations panel" },
     el("td", {}, r.label, el("span", { className: "muted" }, ` ${r.id}/${r.arity}`)),
     el("td", {}, domainLabel(r.domain)),
-    el("td", {}, r.kind === "derived" ? kindBadge(true) : r.kind === "generated" ? el("span", { className: "kind-badge stated", textContent: "generated" }) : kindBadge(false)),
+    el("td", {}, kindBadge(r.kind)),
     el("td", { className: "num" }, String(r.facts)),
     el("td", { className: "num" }, String(r.symbols)),
     el("td", { className: "num" }, r.rule_symbols === undefined ? "" : String(r.rule_symbols)),
@@ -990,7 +991,7 @@ function showRelation(id: string) {
   const panel = $("explain");
   const back = el("button", { type: "button", textContent: `← ${settings.focus ?? "overview"}` });
   back.onclick = () => { selectedRelation = null; selected = null; renderExplain(); };
-  const badge = r.kind === "derived" ? kindBadge(true) : r.kind === "generated" ? el("span", { className: "kind-badge stated", textContent: "generated" }) : kindBadge(false);
+  const badge = kindBadge(r.kind);
   const parts: (HTMLElement | string)[] = [
     el("div", { className: "ex-head" }, el("h2", { textContent: r.label }), badge),
     el("div", { className: "ex-actions" }, back),
@@ -1045,7 +1046,7 @@ function showRelation(id: string) {
   const facts = snap.triples.filter((t) => t.pred === r.id);
   const shown = facts.slice(0, 60);
   if (facts.length) {
-    parts.push(el("h3", { className: "ex-section" }, r.kind === "derived" ? "Derived " : "Stated ", kindBadge(r.kind === "derived"), ` ${facts.length}`),
+    parts.push(el("h3", { className: "ex-section", title: kindHint(r.kind) }, `${kindOf(r.kind).label} `, kindBadge(r.kind), ` ${facts.length}`),
       el("ul", { className: "facts" }, ...shown.map((t) => {
         const li = el("li", { className: "clickable", title: t.derived ? viaText(t.pred, t.via) : "Show where it is written" },
           `${t.s} → ${typeof t.o === "number" ? t.o.toLocaleString() : shortLabel(String(t.o))}`);

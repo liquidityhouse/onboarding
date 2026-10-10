@@ -64,6 +64,23 @@ kb_predicate(registered_in, 2, system).
 kb_predicate(identity_setting, 2, system).
 kb_predicate(offers, 2, system).
 
+% --- Kinds of knowledge: how a fact came to be known ---
+% Their names come from the lexicon and their meanings from purpose/2, so the explorer
+% never words them itself.
+knowledge_kind(stated).
+knowledge_kind(generated).
+knowledge_kind(derived).
+
+purpose(stated, 'to record what cannot be worked out from other knowledge, such as decisions, names and observations, written in the knowledge base by a person').
+purpose(generated, 'to take what the repository already records, such as package versions, file headers and the list of knowledge files, instead of writing it by hand').
+purpose(derived, 'to work out what follows from other facts by a rule; open it to see how (the rule) and why (the facts it used)').
+
+% relation_kind(P, Kind): derived when a rule defines P, generated when the repository
+% records it (generated_predicate/2 comes with the generated facts), stated otherwise.
+relation_kind(P, derived) :- derived_predicate(P, _, _), !.
+relation_kind(P, generated) :- kb_predicate(P, A, _), catch(generated_predicate(P, A), _, fail), !.
+relation_kind(_, stated).
+
 % Rules whose conclusions appear as dashed edges and can be explained.
 derived_predicate(soft_credit_limit, 2, risk).
 derived_predicate(daily_allowance, 2, risk).
@@ -100,6 +117,7 @@ entity_type(E, npm_script) :- catch(npm_script(E, _), _, fail), !.
 entity_type(E, identity_mode) :- catch(identity_setting(E, _), _, fail), !.
 entity_type(E, capability) :- catch(offers(_, E), _, fail), !.
 entity_type(E, practice) :- catch(practice(E), _, fail), !.
+entity_type(E, knowledge_kind) :- catch(knowledge_kind(E), _, fail), !.
 entity_type(E, identifier) :- catch((slack_client_id(_, E) ; slack_channel_id(_, E)), _, fail), !.
 entity_type(E, account) :- catch((github_account(_, E) ; jira_site(_, E)), _, fail), !.
 entity_type(E, domain) :- catch((email_domain(_, E) ; cluster_domain(_, E) ; product_domain(_, E) ; managed_by(_, E)), _, fail), !.
@@ -172,6 +190,7 @@ type_style(npm_script, '#c0eb75', box).
 type_style(identity_mode, '#f783ac', diamond).
 type_style(capability, '#ffa8a8', ellipse).
 type_style(practice, '#ced4da', ellipse).
+type_style(knowledge_kind, '#adb5bd', ellipse).
 type_style(url, '#495057', text).
 type_style(value, '#adb5bd', box).
 type_style(concept, '#5c7cfa', dot).

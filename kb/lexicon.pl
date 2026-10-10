@@ -56,6 +56,7 @@ noun(engine_requirement, 'required version').
 noun(identity_setting, setting).
 noun(compression, 'compression template').
 noun(api_docs_path, 'API docs path').
+noun(knowledge_kind, 'kind of knowledge').
 noun(api_reference, 'API reference').
 noun(class_value, 'class-implied value').
 noun(identity, 'same pairs').

@@ -31,9 +31,12 @@ export interface Via {
   instance?: string; query?: string;
 }
 export interface Entity { id: string; type: string; label: string }
+/** How a fact came to be known; names and meanings come from the knowledge base (Graph.kinds). */
+export type KnowledgeKind = "stated" | "generated" | "derived";
+export interface Kind { id: KnowledgeKind; label: string; hint: string }
 export interface Triple {
   s: string | number; p: string; o: string | number;
-  pred: string; domain: string; derived: boolean; severity: string;
+  pred: string; domain: string; derived: boolean; kind: KnowledgeKind; severity: string;
   /** How many proofs reach it; the first one is shown. */
   ways: number;
   via: Via | null;
@@ -41,13 +44,15 @@ export interface Triple {
 /** Everything the explorer draws, already limited to the asker's role. */
 export interface Graph extends Problem {
   domains: Domain[]; predicates: Predicate[]; types: TypeStyle[];
+  /** The kinds of knowledge, named and explained by the knowledge base. */
+  kinds: Kind[]; words: { relation: string };
   rules: Rule[]; entities: Entity[]; triples: Triple[];
 }
 
 export interface Line { depth: number; kind: string; text: string }
 export interface Conclusion { predicate: string; severity: string; goal: string; text: string; via: Via | null; lines: Line[] }
 /** A stated fact in words; technical roles also get where it is written. */
-export interface StatedFact { text: string; source?: Source }
+export interface StatedFact { text: string; kind: KnowledgeKind; source?: Source }
 export interface Explanation extends Problem { id: string; type: string; phrase: string; facts: StatedFact[]; conclusions: Conclusion[] }
 
 export interface Overview extends Problem {
@@ -73,6 +78,7 @@ export interface GoalExplanation extends Problem {
     bindings: Record<string, unknown>; text: string; severity: string;
     /** false when the goal is a stated fact rather than inferred by a rule */
     derived: boolean;
+    kind?: KnowledgeKind;
     via?: Via | null;
     /** Technical roles, stated answers: where the fact is written. */
     source?: Source;
