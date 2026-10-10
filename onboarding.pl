@@ -33,6 +33,10 @@ repo(onboarding, liquidity_house).
 repo(injectx, liquidity_house).
 repo(riskx, liquidity_house).
 repo(k8s, liquidity_house).
+repo(adminx, liquidity_house).
+repo(payx, liquidity_house).
+repo(creditx, liquidity_house).
+repo(tokenx, liquidity_house).
 
 % --- Slack ---
 % First login is at the workspace link, through an invitation to your personal email.
@@ -67,7 +71,10 @@ jira_board('GOAT', 2).
 % (requires/2 below). riskx's Metabase access follows from data_source/2.
 service(injectx).
 service(riskx).
-service(payex).
+service(payx).
+service(creditx).
+service(tokenx).
+service(adminx).
 
 depends_on(injectx, onboarding).
 depends_on(injectx, k8s).
@@ -77,6 +84,22 @@ needs_setup(injectx, docker_compose).
 needs_setup(injectx, bun_runtime).
 needs_setup(injectx, aws_dev_role).
 needs_setup(riskx, docker_compose).
+needs_setup(adminx, bun_runtime).
+
+% --- AdminX: the internal admin app (checked in its repository on 10 October 2026) ---
+% A Next.js and React app on Bun, styled with Tailwind and shadcn (Radix UI) components,
+% talking to its backend over tRPC. It has client packages for the services below, and
+% already hosts an AI agent; the knowledge explorer is to move into it (GOAT-22).
+built_with(adminx, nextjs).
+built_with(adminx, react).
+built_with(adminx, tailwindcss).
+built_with(adminx, shadcn).
+built_with(adminx, trpc).
+built_with(adminx, bun_runtime).
+calls(adminx, injectx).
+calls(adminx, payx).
+calls(adminx, creditx).
+calls(adminx, tokenx).
 
 % --- InjectX public API ---
 % The public API reference (OpenAPI) is served by injectx itself, under its API host

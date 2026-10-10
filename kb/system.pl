@@ -69,6 +69,10 @@ uses(readme_builder, kb_service).
 uses(api_check, web_server).
 uses(mcp_check, mcp_server).
 
+% Where the explorer is going: into AdminX (GOAT-22), so new UI work follows AdminX's
+% stack (React with shadcn components) rather than adding another framework.
+planned_host(explorer_ui, adminx).
+
 % --- npm scripts that need more than the component they start ---
 purpose(dev, 'to run the web server and restart it whenever a source file changes').
 purpose(typecheck, 'to type-check the servers, the explorer and the scripts').

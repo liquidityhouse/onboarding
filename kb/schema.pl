@@ -42,6 +42,9 @@ kb_predicate(riskx, 2, platform).
 kb_predicate(data_source, 2, platform).
 kb_predicate(monitors, 2, platform).
 kb_predicate(api_docs_path, 2, platform).
+kb_predicate(built_with, 2, platform).
+kb_predicate(calls, 2, platform).
+kb_predicate(planned_host, 2, system).
 kb_predicate(operator, 2, risk).
 kb_predicate(ggr_90d, 2, risk).
 kb_predicate(dau, 2, risk).
@@ -136,6 +139,7 @@ entity_type(E, operator) :- catch(operator(E, _), _, fail), !.
 entity_type(E, service) :- catch(service(E), _, fail), !.
 entity_type(E, repository) :- catch(repo(E, _), _, fail), !.
 entity_type(E, env_setup) :- catch(needs_setup(_, E), _, fail), !.
+entity_type(E, technology) :- catch(built_with(_, E), _, fail), !.
 entity_type(E, organisation) :- catch(github_account(E, _), _, fail), !.
 entity_type(E, weight) :- catch(risk_weight(E, _), _, fail), !.
 entity_type(E, data_source) :- catch(data_source(_, E), _, fail), !.
@@ -191,6 +195,7 @@ type_style(identity_mode, '#f783ac', diamond).
 type_style(capability, '#ffa8a8', ellipse).
 type_style(practice, '#ced4da', ellipse).
 type_style(knowledge_kind, '#adb5bd', ellipse).
+type_style(technology, '#63e6be', diamond).
 type_style(url, '#495057', text).
 type_style(value, '#adb5bd', box).
 type_style(concept, '#5c7cfa', dot).
