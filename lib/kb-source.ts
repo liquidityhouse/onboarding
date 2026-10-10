@@ -186,6 +186,16 @@ async function generatedFacts({ engine, packs, manifestText, sources }: Layout, 
       }
     }
   }
+  // A predicate with rules in an engine file and in another file is two definitions merged into
+  // one, so every call answers once per definition (an audit once took minutes this way). One
+  // declared discontiguous is spread on purpose, like the requests of api_term/2.
+  const spread = new Set(texts.flatMap((t) => [...t.matchAll(/^:-\s*discontiguous\(\s*([a-z]\w*\/\d+)/gm)].map((m) => m[1])));
+  const ruleFiles = new Map<string, Set<string>>();
+  for (const [k, file] of sources.entries()) {
+    for (const c of sourceClauses(texts[k])) if (c.rule) ruleFiles.set(`${c.name}/${c.arity}`, (ruleFiles.get(`${c.name}/${c.arity}`) ?? new Set()).add(file));
+  }
+  const clashes = [...ruleFiles].filter(([key, fs]) => !spread.has(key) && fs.size > 1 && [...fs].some((f) => engine.includes(f)))
+    .map(([key, fs]) => `:- format("Warning: ~w has rules in ~w, so they add up to one predicate~n", [${atom(key)}, ${atom([...fs].join(" and "))}]).`);
   // The statement in this file that generates each predicate, read from this file itself.
   const self = await readFile(import.meta.filename, "utf8");
   const selfFile = relative(ROOT, import.meta.filename);
@@ -198,6 +208,7 @@ async function generatedFacts({ engine, packs, manifestText, sources }: Layout, 
     ...facts,
     ...[...generated].map(([name, arity]) => `generated_predicate(${name}, ${arity}).`),
     ...code,
+    ...clashes,
     "",
   ].join("\n");
 }
