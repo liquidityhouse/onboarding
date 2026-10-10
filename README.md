@@ -83,7 +83,7 @@ graph LR
 | `mcp_check` | script | Node.js | `scripts/mcp-check.ts` | Smoke test for the MCP tools at the web server's POST /mcp, on servers started on spare ports: lists the tools, walks the discover → focus → verify → explain sequence an agent would follow, and checks that free-form queries are answered, refused outside their role and contained in the sandbox, that a signed-in person is held to their role, and that dev mode answers local clients only; then that progress and local changes to facts are recorded (in a scratch state file, never the real one), refused where they should be, and undone |
 | `code_export` | script | Node.js | `scripts/export-code.ts` | Bundles all application source into export/_code.txt for sharing as a single file |
 | `readme_builder` | script | Node.js | `scripts/readme.ts` | Composes README.md from the knowledge base: every heading, sentence and table cell comes from the knowledge packs |
-| `github_commits` | script | Node.js | `scripts/github-commits.ts` | Refreshes the Liquidity House pack's GitHub data from the GitHub API by the same rule-built steps an agent is given (agent_tasks.pl): each developer's last commit (github-activity.json), then, as the rules decide who is active, each active developer's commits per repository (github-commits.json), a commit on any branch counted once |
+| `github_commits` | script | Node.js | `scripts/github-commits.ts` | Refreshes the Liquidity House pack's GitHub data from the GitHub API by the same rule-built steps an agent is given (agent_tasks.pl): each organisation member's last commit (github-activity.json), then, as the rules decide who is active, each active developer's commits per repository (github-commits.json), a commit on any branch counted once |
 
 ## Running it
 
@@ -101,7 +101,7 @@ npm start
 | `npm run typecheck` | `tsc --noEmit` | Type-check the server, the explorer and the scripts |
 | `npm run export` | `node scripts/export-code.ts` | Bundles all application source into export/_code.txt for sharing as a single file |
 | `npm run mcp:check` | `node scripts/mcp-check.ts` | Smoke test for the MCP tools at the web server's POST /mcp, on servers started on spare ports: lists the tools, walks the discover → focus → verify → explain sequence an agent would follow, and checks that free-form queries are answered, refused outside their role and contained in the sandbox, that a signed-in person is held to their role, and that dev mode answers local clients only; then that progress and local changes to facts are recorded (in a scratch state file, never the real one), refused where they should be, and undone |
-| `npm run github-commits` | `node scripts/github-commits.ts` | Refreshes the Liquidity House pack's GitHub data from the GitHub API by the same rule-built steps an agent is given (agent_tasks.pl): each developer's last commit (github-activity.json), then, as the rules decide who is active, each active developer's commits per repository (github-commits.json), a commit on any branch counted once |
+| `npm run github-commits` | `node scripts/github-commits.ts` | Refreshes the Liquidity House pack's GitHub data from the GitHub API by the same rule-built steps an agent is given (agent_tasks.pl): each organisation member's last commit (github-activity.json), then, as the rules decide who is active, each active developer's commits per repository (github-commits.json), a commit on any branch counted once |
 | `npm run api:check` | `node scripts/api-check.ts` | End-to-end check of the REST endpoints and their role scoping |
 | `npm run readme` | `node scripts/readme.ts` | Composes README.md from the knowledge base: every heading, sentence and table cell comes from the knowledge packs |
 | `npm run readme:check` | `node scripts/readme.ts --check` | Fail when README.md differs from what the knowledge base would generate, for use in CI |
@@ -138,7 +138,7 @@ The knowledge base exists to hold the engine that reasons and explains (kb/) and
 | `knowledge/liquidity_house/agent_tasks.pl` | What an agent does, step by step, to read this pack's outside data again |
 | `knowledge/liquidity_house/schema.pl` | The Liquidity House pack's domains, relations, entity types, roles and accounts |
 | `knowledge/liquidity_house/vocabulary.pl` | The Liquidity House pack's words: what its concepts, relations, people and units are called |
-| `knowledge/liquidity_house/github-activity.json` | The week of each developer's last commit in the liquidityhouse organisation, by GitHub user; last_commit_week/2 facts, which decide who is active |
+| `knowledge/liquidity_house/github-activity.json` | The date of each liquidityhouse organisation member's last commit, by GitHub user; last_commit_week/2 facts, from which the activity rule decides who is active |
 | `knowledge/liquidity_house/github-commits.json` | Commits by each developer (an engineer with a GitHub user, still in Slack) in each liquidityhouse repository, summed over their GitHub users; commits_by/3 facts |
 | `knowledge/knowledge_explorer` | The knowledge explorer described as knowledge: its components, endpoints, MCP tools, identity modes and practices, from which README.md is composed |
 | `knowledge/knowledge_explorer/explorer.pl` | The knowledge explorer and its server, described as knowledge |

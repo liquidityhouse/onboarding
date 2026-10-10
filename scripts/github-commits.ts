@@ -1,7 +1,8 @@
 // Refreshes the Liquidity House pack's GitHub data from the GitHub API by the same rule-built
-// steps an agent is given (agent_tasks.pl): each developer's last commit (github-activity.json),
-// then, as the rules decide who is active, each active developer's commits per repository
-// (github-commits.json), a commit on any branch counted once. Without a token it prints those steps.
+// steps an agent is given (agent_tasks.pl): each organisation member's last commit
+// (github-activity.json), then, as the rules decide who is active, each active developer's
+// commits per repository (github-commits.json), a commit on any branch counted once. Without a
+// token it prints those steps.
 //
 // Run: npm run github-commits                  (GITHUB_TOKEN in .env: read-only Contents access to
 //      liquidityhouse; fine-grained tokens work once an organisation owner approves them)
@@ -77,24 +78,26 @@ async function writeData(file: string, fields: Record<string, string>, rows: (st
 const today = new Date().toISOString().slice(0, 10);
 const made = (what: string) => `npm run github-commits on ${today}, from the GitHub API: ${what}, following the steps in agent_tasks.pl`;
 
-// 1. commit_activity: every developer's last commit, which decides who is active.
-const [{ Org: org }] = await items(kb.program, "commit_counts", "sign_in(Org)");
+// 1. commit_activity: when each member of the organisation last committed (list_members, then
+//    last_commit for each), which decides who is active.
+const [{ Org: org }] = await items(kb.program, "commit_activity", "list_members(Org)");
 const repos = (await items(kb.program, "commit_counts", "read_repository(_, R)")).map((a) => a.R);
 const [{ F: activityFile }] = await ask(kb.program, "agent_task(commit_activity, F)");
 const activity: [string, string][] = [];
-for (const { L: login } of await items(kb.program, "commit_activity", "last_commit(_, L)")) {
+for (const { login } of await all<{ login: string }>(`/orgs/${org}/members`)) {
   const dates = await Promise.all(repos.map(async (repo) =>
     (await github<{ commit: { author: { date: string } } }[]>(`/repos/${org}/${repo}/commits?author=${encodeURIComponent(login)}&per_page=1`))[0]?.commit.author.date ?? ""));
   const last = dates.filter(Boolean).sort().at(-1);
   if (last) activity.push([login, last.slice(0, 10)]);
 }
 activity.sort((a, b) => b[1].localeCompare(a[1]));
-await writeData(activityFile, { as_of: today, made_by: made("each developer's latest commit in any repository") }, activity);
+await writeData(activityFile, { as_of: today, made_by: made("each organisation member's latest commit in any repository") }, activity);
 
 // 2. commit_counts: with that activity, the rules say whose commits count and whose are skipped.
 invalidate();
 const { kb: now } = await current();
-for (const s of await items(now.program, "commit_counts", "skip(P, _, D, _)")) console.log(`skipping ${s.P}: inactive, ${s.D} days since the last commit`);
+for (const s of await items(now.program, "commit_counts", "skip(L, D, _)")) console.log(`skipping ${s.L}: inactive, ${s.D} days since the last commit`);
+for (const u of await items(now.program, "commit_counts", "unknown(L)")) console.log(`skipping ${u.L}: active, but the knowledge base does not say who it is`);
 const counted = await items(now.program, "commit_counts", "count(P, L, _)");
 const [{ F: countsFile }] = await ask(now.program, "agent_task(commit_counts, F)");
 const rows: [string, string, number][] = [];

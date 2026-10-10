@@ -141,7 +141,7 @@ try {
   // Agent steps for refreshing outside data, for technical roles.
   const steps = await adam("/api/agent-instructions/commit_counts");
   const said = (steps.body.steps ?? []).join(" ");
-  check("agent steps are built by the rules: counts for active developers, skips for inactive ones", steps.status === 200 && /Count georgi's commits \(GitHub user Arihtev\)/.test(said) && /Skip madusha/.test(said), said.slice(0, 200));
+  check("agent steps are built by the rules: counts for active developers, skips for inactive ones", steps.status === 200 && /Count georgi's commits \(GitHub user Arihtev\)/.test(said) && /Skip GitHub user mprasanjith: inactive/.test(said), said.slice(0, 200));
   check("an unknown agent task lists the known ones", (await adam("/api/agent-instructions/nothing")).status === 404);
   check("agent steps are closed to the risk officer", (await dominic("/api/agent-instructions/commit_counts")).status === 403);
 

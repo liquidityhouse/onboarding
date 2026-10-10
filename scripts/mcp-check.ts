@@ -91,9 +91,10 @@ const sequence: Call[] = [
   // Agent steps for refreshing that data by hand, filled in from the knowledge base.
   // Steps built by rules: a count per active developer, a skip (with why) per inactive one.
   ["agent_instructions", { task: "commit_counts" }, false,
-    (t) => t.includes("Count gustav's commits") && /Skip madusha .*inactive/.test(t) && t.includes("github-commits.json")],
-  ["explain_rule_or_decision", { expression: "developer_activity(madusha, S)" }, false,
+    (t) => t.includes("Count gustav's commits") && /Skip GitHub user mprasanjith: inactive/.test(t) && t.includes("github-commits.json")],
+  ["explain_rule_or_decision", { expression: "login_activity(mprasanjith, S)" }, false,
     (t) => t.includes("inactive") && /github-activity\.json/.test(t)],
+  ["query_knowledge_base", { goal: "full_name(madusha, N)" }, false, (t) => JSON.parse(t).answers[0] === "false."],
   ["agent_instructions", { task: "nothing" }, true, (t) => JSON.parse(t).tasks.includes("commit_counts")],
   ["agent_instructions", { task: "commit_counts", scope: "risk_officer" }, true, (t) => /not available to role/.test(t)],
 ];
