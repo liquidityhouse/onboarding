@@ -5,10 +5,12 @@
 //   query_entity_context      triples within N hops of one entity, in a role scope
 //   verify_task_onboarding    what working on a service needs, and what is still missing
 //   explain_rule_or_decision  English proof traces for a goal, or a rule in words
+//   query_knowledge_base      any goal, run in a sandbox; for developers exploring directly
 //
 // The answers come from the same Prolog requests (kb/api.pl) and shared engine
 // (lib/kb-service.ts) as the web server's REST endpoints. The engine is rebuilt
-// when the KB files change, so edits to kb/*.pl apply at once.
+// when the KB files change, so edits to kb/*.pl apply at once. Which role may use which
+// tool is knowledge too: can_use/2 in kb/system.pl, asked before every call.
 //
 // Run: node mcp-server.ts   (stdio; logs go to stderr)
 
@@ -17,21 +19,32 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { current } from "./lib/kb-service.ts";
 import type { Problem } from "./lib/kb-types.ts";
-import type { KbEngine } from "./lib/prolog.ts";
+import { literal, type KbEngine } from "./lib/prolog.ts";
+import { runQuery } from "./lib/sandbox.ts";
 
 type Result = { content: { type: "text"; text: string }[]; isError?: boolean };
 
+const failure = (text: string): Result => ({ content: [{ type: "text", text }], isError: true });
+
+/** Authorisation from the knowledge base: can_use(Role, Tool). Unknown roles have no features. */
+async function refused(engine: KbEngine, tool: string, scope: string): Promise<Result | null> {
+  const { allowed } = await engine.api<{ allowed: boolean }>(`may_use(${literal(scope)}, ${literal(tool)})`);
+  return allowed ? null : failure(`${tool} is not available to role '${scope}'.`);
+}
+
 /** Compact JSON keeps answers small; a `problem` from Prolog becomes a tool error with its hints. */
-async function answer<T extends Problem>(ask: (engine: KbEngine) => Promise<T>, extra: Record<string, unknown> = {}): Promise<Result> {
+async function answer<T extends Problem>(tool: string, scope: string, ask: (engine: KbEngine) => Promise<T>, extra: Record<string, unknown> = {}): Promise<Result> {
   try {
     const { kb, engine } = await current();
+    const no = await refused(engine, tool, scope);
+    if (no) return no;
     const body = await ask(engine);
     return {
       content: [{ type: "text", text: JSON.stringify({ ...body, ...extra, kb_version: kb.version }) }],
       isError: body.problem ? true : undefined,
     };
   } catch (e) {
-    return { content: [{ type: "text", text: `Knowledge base error: ${(e as Error).message}` }], isError: true };
+    return failure(`Knowledge base error: ${(e as Error).message}`);
   }
 }
 
@@ -59,7 +72,7 @@ server.registerTool(
     annotations: readOnly,
   },
   ({ domain, scope }) =>
-    answer((e) => e.overview(domain, scope), {
+    answer("get_knowledge_overview", scope, (e) => e.overview(domain, scope), {
       next: "query_entity_context(entity) to focus; verify_task_onboarding(service) before working on a service; explain_rule_or_decision(expression) for why.",
     }),
 );
@@ -77,7 +90,7 @@ server.registerTool(
     },
     annotations: readOnly,
   },
-  ({ entity, depth, scope, max_triples }) => answer((e) => e.context(entity, depth, scope, max_triples)),
+  ({ entity, depth, scope, max_triples }) => answer("query_entity_context", scope, (e) => e.context(entity, depth, scope, max_triples)),
 );
 
 server.registerTool(
@@ -96,7 +109,7 @@ server.registerTool(
     },
     annotations: readOnly,
   },
-  ({ service, userId, completed, scope }) => answer((e) => e.verify(userId, service, completed, scope)),
+  ({ service, userId, completed, scope }) => answer("verify_task_onboarding", scope, (e) => e.verify(userId, service, completed, scope)),
 );
 
 server.registerTool(
@@ -112,11 +125,39 @@ server.registerTool(
     annotations: readOnly,
   },
   ({ expression, max_answers, scope }) =>
-    answer(async (e) => {
+    answer("explain_rule_or_decision", scope, async (e) => {
       const ex = await e.explainGoal(expression, max_answers, scope);
       for (const a of ex.answers ?? []) delete a.lines; // agents read `explanation`; lines are for the explorer
       return ex;
     }),
+);
+
+server.registerTool(
+  "query_knowledge_base",
+  {
+    title: "Query the knowledge base",
+    description: describe("query_knowledge_base",
+      "Give a Prolog goal, e.g. soft_credit_limit(Op, Limit) or relies_on(api_check, D); each answer comes back as its variable bindings. Runs in a separate worker for at most 3 seconds, so halt/0 or a runaway goal cannot affect the server."),
+    inputSchema: {
+      goal: z.string().min(1).max(2000).describe("A Prolog goal; the final full stop is optional."),
+      max_answers: z.number().int().min(1).max(200).default(50).describe("Cap on listed answers."),
+      scope: role,
+    },
+    annotations: readOnly,
+  },
+  async ({ goal, max_answers, scope }) => {
+    try {
+      const { kb, engine } = await current();
+      const no = await refused(engine, "query_knowledge_base", scope);
+      if (no) return no;
+      const lines = await runQuery(kb.program, goal, { timeoutMs: 3000, limit: max_answers });
+      const truncated = lines.length > max_answers;
+      const answers = truncated ? lines.slice(0, max_answers) : lines;
+      return { content: [{ type: "text", text: JSON.stringify({ goal, answers, truncated, kb_version: kb.version }) }] };
+    } catch (e) {
+      return failure(`Query stopped: ${(e as Error).message}`);
+    }
+  },
 );
 
 await current();

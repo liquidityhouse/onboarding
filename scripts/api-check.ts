@@ -67,13 +67,8 @@ try {
   check("raw KB is closed to the risk officer", (await dominic("/api/kb.pl")).status === 403);
   check("raw KB is open to the developer", (await adam("/api/kb.pl")).status === 200);
 
-  check("risk officer has no query console", (await dominic("/api/query", { method: "POST", body: JSON.stringify({ goal: "true" }) })).status === 403);
-  const q = await adam("/api/query", { method: "POST", body: JSON.stringify({ goal: "soft_credit_limit(dope, L)" }) });
-  check("developer query", q.status === 200 && /L = 74750/.test(q.body.lines?.join(" ")), JSON.stringify(q.body));
-  const halt = await adam("/api/query", { method: "POST", body: JSON.stringify({ goal: "halt" }) });
-  check("halt/0 stays inside the sandbox", halt.status !== 500, JSON.stringify(halt));
-  const loop = await adam("/api/query", { method: "POST", body: JSON.stringify({ goal: "repeat, fail" }) });
-  check("a runaway query is stopped", loop.status === 422 && /stopped after/.test(loop.body.error), JSON.stringify(loop.body));
+  // Free-form queries moved to the MCP query tool (npm run mcp:check tests the sandbox).
+  check("no free-form query endpoint", (await adam("/api/query", { method: "POST", body: JSON.stringify({ goal: "true" }) })).status === 404);
   check("the shared engine still answers afterwards", (await adam("/api/explain/riskx")).status === 200);
 
   check("risk officer cannot explain onboarding goals", (await dominic(`/api/explain-goal?expression=${encodeURIComponent("url(riskx, U)")}`)).status === 400);
