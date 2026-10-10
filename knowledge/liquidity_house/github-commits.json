@@ -1,21 +1,23 @@
 {
-  "summary": "Commits by each of the four developers in each liquidityhouse repository, summed over their GitHub users (github_login/2), from GitHub's contributors graph on 10 October 2026 (onboarding from its git history); bots and users no longer in the liquidityhouse organisation are left out; commits_by/3 facts",
+  "summary": "Commits by each developer (an engineer with a GitHub user, still in Slack) in each liquidityhouse repository, summed over their GitHub users; commits_by/3 facts",
   "relation": "commits_by",
+  "made_by": "read on 10 October 2026 by Claude in BrowserOS neo, signed in to GitHub as Adam, from each repository's contributors graph (onboarding from its git history), counting only the developers the knowledge base names; npm run github-commits does the same with a GitHub token",
+  "read_from": "https://github.com/liquidityhouse/{1}/graphs/contributors",
   "facts": [
     ["injectx","gustav",450],
     ["injectx","rasmus",89],
-    ["injectx","madusha",36],
     ["payx","gustav",487],
     ["payx","rasmus",389],
-    ["payx","madusha",31],
+    ["payx","georgi",25],
     ["creditx","gustav",76],
     ["tokenx","gustav",69],
     ["tokenx","rasmus",1],
     ["riskx","gustav",37],
+    ["riskx","georgi",8],
     ["k8s","gustav",125],
+    ["k8s","georgi",1],
     ["k8s","rasmus",1],
     ["adminx","gustav",175],
-    ["adminx","madusha",175],
     ["adminx","rasmus",21],
     ["onboarding","adam",43]
   ]

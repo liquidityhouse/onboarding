@@ -53,7 +53,6 @@ full_name(dominic, 'Dominic Cortis').
 full_name(anthony, 'Anthony').
 full_name(cecilia, 'Cecilia Nüth').
 full_name(gustav, 'Gustav Genberg').
-full_name(madusha, 'Madusha Prasanjith').
 slack_member_id(adam, 'U0C757WMNAF').
 slack_member_id(richard, 'U0A1T3DP2HG').
 slack_member_id(rasmus, 'U0A30ERHKRN').
@@ -62,22 +61,21 @@ slack_member_id(dominic, 'U0BTXER8R6G').
 slack_member_id(anthony, 'U0BD87PHCTY').
 slack_member_id(cecilia, 'U0B7RG2M0Q4').
 slack_member_id(gustav, 'U0A2K34AN81').
-slack_member_id(madusha, 'U0A3803TMTJ').
 
-% GitHub users of the liquidityhouse organisation, matched by the name on their profile; a
-% person may have several. github-commits.json (commits_by/3) sums each developer's commits
-% over their GitHub users.
+% GitHub users of the liquidityhouse organisation, matched by the name on their profile or
+% in Slack (Arihtev is Georgi Arihtev); a person may have several. github-commits.json
+% (commits_by/3) sums each developer's commits over their GitHub users.
 github_login(adam, adamrybinski).
 github_login(rasmus, 'ProgracomRasmus').
 github_login(georgi, 'Arihtev').
 github_login(richard, '0xRLA').
 github_login(gustav, gustavgenberg).
-github_login(madusha, mprasanjith).
 
 % --- What each person does, and what kind of work that is ---
 works_as(adam, software_engineer).
 works_as(rasmus, software_engineer).
 works_as(georgi, software_engineer).
+works_as(gustav, software_engineer).   % from his commits; Slack records no title
 works_as(richard, team_lead).
 works_as(richard, cto).
 works_as(dominic, head_of_risk).
