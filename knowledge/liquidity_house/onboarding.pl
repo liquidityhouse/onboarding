@@ -64,8 +64,9 @@ slack_member_id(cecilia, 'U0B7RG2M0Q4').
 slack_member_id(gustav, 'U0A2K34AN81').
 slack_member_id(madusha, 'U0A3803TMTJ').
 
-% GitHub users, matched by the name on their GitHub profile. Commits per repository are in
-% github-commits.json (commits_by/3); users not matched here, or no longer in Slack, own nothing.
+% GitHub users of the liquidityhouse organisation, matched by the name on their profile; a
+% person may have several. github-commits.json (commits_by/3) sums each developer's commits
+% over their GitHub users.
 github_login(adam, adamrybinski).
 github_login(rasmus, 'ProgracomRasmus').
 github_login(georgi, 'Arihtev').
@@ -239,13 +240,12 @@ can_help_with(Person, Item) :-
 % commits (two, when they made as many). Someone who left Slack is never a candidate.
 candidate_owner(Repo, Person) :-
     most_commits_in_slack(Repo, Count),
-    commits_by(Repo, Login, Count),
-    github_login(Person, Login),
+    commits_by(Repo, Person, Count),
     slack_member_id(Person, _).
 
 % The most commits any one person still in Slack made to a repository.
 most_commits_in_slack(Repo, Most) :-
-    setof(Count, Login^Person^Id^( commits_by(Repo, Login, Count), github_login(Person, Login), slack_member_id(Person, Id) ), Counts),
+    setof(Count, Person^Id^( commits_by(Repo, Person, Count), slack_member_id(Person, Id) ), Counts),
     last(Counts, Most).
 
 % Reaching a service's public API takes what its cluster's API gateway needs.

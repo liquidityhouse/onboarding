@@ -93,7 +93,7 @@ type_rule(E, workspace) :- catch(slack_client_id(E, _), _, fail), !.
 type_rule(E, channel) :- catch(slack_channel(_, E), _, fail), !.
 type_rule(E, person) :- catch((invites(E, _) ; works_as(E, _) ; member_of(E, _) ; helps_with(E, _) ; grants(E, _) ; full_name(E, _)), _, fail), !.
 type_rule(E, job) :- catch(works_as(_, E), _, fail), !.
-type_rule(E, github_user) :- catch((github_login(_, E) ; commits_by(_, E, _)), _, fail), !.
+type_rule(E, github_user) :- catch(github_login(_, E), _, fail), !.
 type_rule(E, work_area) :- catch(job_area(_, E), _, fail), !.
 type_rule(E, api) :- catch(public_api(_, E), _, fail), !.
 type_rule(E, jira_project) :- catch(jira_site(E, _), _, fail), !.

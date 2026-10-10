@@ -84,7 +84,7 @@ const sequence: Call[] = [
   ["query_knowledge_base", { goal: "can_help_with(dominic, X)" }, false, (t) => JSON.parse(t).answers.join() === "X = riskx."],
   // Candidate owners: most commits among people still in Slack; unmatched GitHub users never own.
   ["query_knowledge_base", { goal: "candidate_owner(adminx, P)" }, false, (t) => JSON.parse(t).answers.length === 2],
-  ["query_knowledge_base", { goal: "candidate_owner(R, P), commits_by(R, insolencedxb, _), P \\== gustav" }, false, (t) => JSON.parse(t).answers[0] === "false."],
+  ["query_knowledge_base", { goal: "commits_by(_, P, _), \\+ full_name(P, _)" }, false, (t) => JSON.parse(t).answers[0] === "false."],
 ];
 
 // --- Dev identity: each call names its role in `scope` ---
