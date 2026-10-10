@@ -298,22 +298,13 @@ api_term(agent_instructions(Task), obj([task-Task, purpose-Pu, file-F, steps-arr
     keysort(Ps, Sorted),
     findall(S, member(_-S, Sorted), Ss).
 
+% {Key} placeholders replaced by their values (replace_all/4 is in explain.pl).
 fill_all([], S, S).
 fill_all([K-V|KVs], S0, S) :-
     format(atom(Key), "{~w}", [K]),
     replace_all(S0, Key, V, S1),
     fill_all(KVs, S1, S).
 
-% replace_all(Atom, From, To, Result): every From in Atom replaced by To, over character codes
-% (a cut after sub_atom/5 leaves its alternatives in Trealla).
-replace_all(A, From, To, R) :-
-    atom_codes(A, Cs), atom_codes(From, Fs), atom_codes(To, Ts),
-    replace_codes(Cs, Fs, Ts, Rs),
-    atom_codes(R0, Rs), R = R0.
-
-replace_codes([], _, _, []).
-replace_codes(Cs, Fs, Ts, Rs) :- append(Fs, Rest, Cs), !, replace_codes(Rest, Fs, Ts, R1), append(Ts, R1, Rs).
-replace_codes([C|Cs], Fs, Ts, [C|Rs]) :- replace_codes(Cs, Fs, Ts, Rs).
 
 % The facts a proof rests on that were recorded from outside the repository (pack data
 % files), each with where it was read from and how, for technical roles.
