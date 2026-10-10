@@ -1,7 +1,7 @@
-// Composes README.md from the knowledge base: every heading, sentence and table cell comes from kb/*.pl.
+// Composes README.md from the knowledge base: every heading, sentence and table cell comes from the knowledge packs.
 //
-// The sections and their content are knowledge (kb/readme.pl reading kb/system.pl, the schema
-// and the lexicon); this script only renders them as Markdown.
+// The sections and their content are knowledge (the explorer pack's readme.pl reading its
+// explorer.pl, the schemas and the vocabularies); this script only renders them as Markdown.
 //
 // Run: npm run readme          (writes README.md)
 //      npm run readme:check    (exits 1 when README.md is out of date)

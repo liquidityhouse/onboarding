@@ -8,6 +8,9 @@
   --accent: #4c6ef5;
   --warn: #e03131;
   --warn-bg: #fff5f5;
+  --gold: #f5b800;
+  --gold-bg: #fff8db;
+  --gold-ink: #4a3800;
   --ok: #2f9e44;
   --radius: 8px;
   --pl-comment: #6a737d;
@@ -29,6 +32,9 @@
     --accent: #748ffc;
     --warn: #ff6b6b;
     --warn-bg: #2a1b1d;
+    --gold: #ffc61a;
+    --gold-bg: #2e2810;
+    --gold-ink: #ffe28a;
     --ok: #51cf66;
     --pl-comment: #8b949e;
     --pl-atom: #7ee2a8;
@@ -295,3 +301,23 @@ button.link.strong { font-weight: 600; }
   .stage { height: 60vh; }
   .topbar { padding: 10px 16px; }
 }
+
+/* Local overrides: facts changed on this machine, outlined in bright gold with an "i" */
+.kind-badge.local { background: var(--gold); border: 1px solid var(--gold); color: #3a2c00; font-weight: 600; }
+.facts li.local, .setup-steps li.local, .changes li { border: 2px solid var(--gold); border-radius: var(--radius); background: var(--gold-bg); padding: 4px 8px; margin: 4px 0; list-style-position: inside; }
+.card.local { border: 2px solid var(--gold); background: var(--gold-bg); }
+tr.local td { background: var(--gold-bg); border-top: 2px solid var(--gold); border-bottom: 2px solid var(--gold); }
+tr.local td:first-child { border-left: 2px solid var(--gold); }
+tr.local td:last-child { border-right: 2px solid var(--gold); }
+.changes { list-style: none; padding: 0; margin: 6px 0; }
+.changes li.remove { text-decoration: line-through; text-decoration-color: var(--gold-ink); }
+.changes li.stale { opacity: .6; border-style: dashed; }
+.change-op { font-weight: 700; color: var(--gold-ink); }
+.overrides textarea, .fact-edit { width: 100%; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 6px; box-sizing: border-box; }
+.overrides input[type="url"] { flex: 1; min-width: 0; }
+.fact-actions { margin-left: 6px; font-size: 12px; white-space: nowrap; }
+.fact-form { margin-top: 6px; }
+.setup-steps ul { list-style: none; padding: 0; margin: 6px 0; }
+.setup-steps li { padding: 3px 0; }
+.notice { padding: 8px 16px; background: var(--gold-bg); color: var(--gold-ink); border-bottom: 2px solid var(--gold); white-space: pre-wrap; }
+.notice.problem { background: var(--warn-bg); color: var(--warn); border-bottom-color: var(--warn); }

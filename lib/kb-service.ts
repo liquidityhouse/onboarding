@@ -37,6 +37,11 @@ export interface Current {
   cached<T>(key: string, compute: () => Promise<T>): Promise<T>;
 }
 
+/** Re-read the files on the next call, as after a change to the local overrides. */
+export function invalidate(): void {
+  checked = 0;
+}
+
 /** The engine for the current KB version. Files are re-read at most once a second. */
 export async function current(): Promise<Current> {
   if (!loaded || Date.now() - checked > RECHECK_MS) {

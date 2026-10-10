@@ -1,15 +1,14 @@
 {
-  "description": "Ordered Prolog sources served as one program at /api/kb. Paths are relative to the repo root.",
-  "sources": [
-    "onboarding.pl",
-    "kb/riskx_kb.pl",
-    "kb/progress.pl",
-    "kb/system.pl",
+  "description": "The engine's Prolog files, then the knowledge packs to load, in order. Each pack folder lists its files in pack.json; KB_PACKS (comma-separated folders) loads other packs without editing this file.",
+  "engine": [
+    "kb/core.pl",
     "kb/lexicon.pl",
-    "kb/schema.pl",
     "kb/explain.pl",
     "kb/api.pl",
-    "kb/audit.pl",
-    "kb/readme.pl"
+    "kb/audit.pl"
+  ],
+  "packs": [
+    "knowledge/liquidity_house",
+    "knowledge/knowledge_explorer"
   ]
 }

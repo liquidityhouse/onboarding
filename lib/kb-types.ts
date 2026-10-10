@@ -7,6 +7,8 @@ export interface Problem { problem?: string; [hint: string]: unknown }
 export interface Session extends Problem {
   user: string; name: string; role: string; role_label: string;
   domains: string[]; features: string[]; start: string | null;
+  /** The explorer's name and tagline, from the knowledge (app_title/1, app_tagline/1). */
+  title: string; tagline: string;
 }
 export interface User { id: string; name: string; role: string }
 
@@ -18,6 +20,8 @@ export interface TypeStyle { id: string; label: string; color: string; shape: st
 export interface Snippet { label: string; file: string; line: number; text: string }
 export interface Source {
   file: string; line?: number; text: string; generated?: boolean;
+  /** Local overrides: the fact is in the state file, not in a pack. */
+  local?: boolean;
   /** Generated facts: where the fact was read from, and the code that generated it. */
   origin?: Snippet; generator?: Snippet;
 }
@@ -37,7 +41,30 @@ export interface Via {
 }
 export interface Entity { id: string; type: string; label: string }
 /** How a fact came to be known; names and meanings come from the knowledge base (Graph.kinds). */
-export type KnowledgeKind = "stated" | "generated" | "derived";
+export type KnowledgeKind = "stated" | "generated" | "derived" | "local";
+
+/** What a change to local overrides did (lib/overrides.ts), with the changes after it. */
+export interface Outcome extends Problem {
+  added?: { fact: string; text: string }[];
+  removed?: { fact: string; text: string }[];
+  undone?: string[];
+  skipped?: { text: string; reason: string }[];
+  changes?: Change[];
+}
+
+/** A local override (lib/overrides.ts): what changed, who changed it, through what and when. */
+export interface Change {
+  id: string; op: "add" | "remove"; fact: string; text: string;
+  /** Who changed it, through what, and from where, in words (without the date). */
+  summary: string;
+  by: string; by_name: string; by_role: string | null; via: string; via_label: string; at: string;
+  /** A removal whose fact is no longer in its file. */
+  stale: boolean;
+  /** pasted, or the URL the facts were read from */
+  source?: string;
+  /** The fact an edit replaced, in words. */
+  replaces?: string;
+}
 export interface Kind { id: KnowledgeKind; label: string; hint: string }
 export interface Triple {
   s: string | number; p: string; o: string | number;
@@ -45,6 +72,8 @@ export interface Triple {
   /** How many proofs reach it; the first one is shown. */
   ways: number;
   via: Via | null;
+  /** The local change that added it, when it is a local override. */
+  change: Change | null;
 }
 /** Everything the explorer draws, already limited to the asker's role. */
 export interface Graph extends Problem {
@@ -57,7 +86,7 @@ export interface Graph extends Problem {
 export interface Line { depth: number; kind: string; text: string }
 export interface Conclusion { predicate: string; severity: string; goal: string; text: string; via: Via | null; lines: Line[] }
 /** A stated fact in words; technical roles also get where it is written. */
-export interface StatedFact { text: string; kind: KnowledgeKind; source?: Source }
+export interface StatedFact { text: string; kind: KnowledgeKind; change: Change | null; source?: Source }
 export interface Explanation extends Problem {
   id: string; type: string; phrase: string;
   /** Other entities whose names differ only in case or punctuation, and what to call them. */
@@ -76,9 +105,13 @@ export interface Context extends Problem {
   entity: string; type: string; depth: number; role: string; total: number; truncated: boolean;
   triples: ContextTriple[]; entities: Record<string, string>;
 }
-export interface Requirement { item: string; type: string; action: string; satisfied: boolean; link: string | null; ask: string[]; because: string[] }
+export interface Requirement {
+  item: string; type: string; action: string; satisfied: boolean; link: string | null; ask: string[]; because: string[];
+  /** The local change behind its tick, if any. */
+  change: Change | null;
+}
 export interface Verification extends Problem {
-  who: string; service: string; known: boolean; ready: boolean; summary: string; missing: string[]; requirements: Requirement[];
+  who: string; who_name: string; who_role: string | null; service: string; known: boolean; ready: boolean; summary: string; missing: string[]; requirements: Requirement[];
 }
 export interface GoalExplanation extends Problem {
   expression: string;

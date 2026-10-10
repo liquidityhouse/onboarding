@@ -87,11 +87,11 @@ try {
   const rel = derived.find((t: { pred: string; s: string; o: string }) => t.pred === "relies_on" && t.s === "explorer_ui" && t.o === "knowledge_base");
   const part = rel?.via.bindings.find((b: { name: string }) => b.name === "part")?.value;
   check("a recursive derivation reaches the right part", rel?.via.rule === 2 && part === "web_server", JSON.stringify(rel?.via));
-  check("developer sees the clause as written, with its query", gA.body.rules.some((r: { source?: { file: string } }) => r.source?.file === "kb/system.pl")
+  check("developer sees the clause as written, with its query", gA.body.rules.some((r: { source?: { file: string } }) => r.source?.file === "knowledge/knowledge_explorer/explorer.pl")
     && typeof rel?.via.query === "string" && typeof rel?.via.instance === "string");
   const stated = await adam(`/api/explain-goal?expression=${encodeURIComponent("onboarding('liquidity-house')")}`);
   const src = stated.body.answers?.[0]?.source;
-  check("a stated fact names its file, line and clause", src?.file === "onboarding.pl" && src.line > 0 && src.text.startsWith("onboarding('liquidity-house')"), JSON.stringify(src));
+  check("a stated fact names its file, line and clause", src?.file === "knowledge/liquidity_house/onboarding.pl" && src.line > 0 && src.text.startsWith("onboarding('liquidity-house')"), JSON.stringify(src));
   const ruleOnly = await dominic(`/api/explain-goal?expression=${encodeURIComponent("operator(dope, S)")}`);
   check("risk officer gets no source for stated facts", ruleOnly.status === 200 && !("source" in ruleOnly.body.answers[0]));
   check("risk officer sees no Prolog", !g.body.rules.some((r: object) => "source" in r || "pattern" in r)

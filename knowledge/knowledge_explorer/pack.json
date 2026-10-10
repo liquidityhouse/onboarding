@@ -1,0 +1,9 @@
+{
+  "summary": "The knowledge explorer described as knowledge: its components, endpoints, MCP tools, identity modes and practices, from which README.md is composed",
+  "files": [
+    "explorer.pl",
+    "schema.pl",
+    "vocabulary.pl",
+    "readme.pl"
+  ]
+}

@@ -1,4 +1,4 @@
-% riskx_kb.pl — RiskX ground facts and risk rules.
+% riskx.pl — RiskX ground facts and risk rules.
 %
 % Ground facts are what the Metabase / RiskX pull (every 5 minutes) would
 % overwrite. Rules derive credit limits and warnings from them. Everything the

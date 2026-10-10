@@ -7,18 +7,21 @@
 //   verify_task_onboarding    what working on a service needs, and what is still missing
 //   explain_rule_or_decision  English proof traces for a goal, or a rule in words
 //   query_knowledge_base      any goal, run in a sandbox; for developers exploring directly
+//   record_progress           mark a service's setup steps done or not done, for a person
+//   change_facts              add, edit, remove or undo facts locally (lib/overrides.ts)
 //
 // The answers come from the same Prolog requests (kb/api.pl) and shared engine
 // (lib/kb-service.ts) as the web server's REST endpoints, so edits to kb/*.pl apply at once.
-// Which role may use which tool is knowledge too: can_use/2 in kb/system.pl, asked before
+// Which role may use which tool is knowledge too: can_use/2 in the explorer pack, asked before
 // every call. With dev identity (KB_AUTH=dev) each call names its role in `scope`; behind an
 // auth proxy (KB_AUTH=proxy) the role is the signed-in person's, and only their tools are listed.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { current } from "./kb-service.ts";
-import type { Problem, Session } from "./kb-types.ts";
+import type { Outcome, Problem, Session } from "./kb-types.ts";
 import { literal, type KbEngine } from "./prolog.ts";
+import { changeFacts, recordProgress } from "./overrides.ts";
 import { runQuery } from "./sandbox.ts";
 
 type Result = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -26,6 +29,7 @@ type Result = { content: { type: "text"; text: string }[]; isError?: boolean };
 const failure = (text: string): Result => ({ content: [{ type: "text", text }], isError: true });
 
 const readOnly = { readOnlyHint: true, idempotentHint: true, openWorldHint: false };
+const changes = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const role = z.string().default("developer").describe("Role scope: developer, risk_officer or admin. It limits which domains are visible.");
 
 /** Authorisation from the knowledge base: can_use(Role, Tool). Unknown roles have no features. */
@@ -37,7 +41,7 @@ async function mayUse(engine: KbEngine, role: string, tool: string): Promise<boo
 export async function knowledgeServer(session?: Session): Promise<McpServer> {
   const { engine, cached } = await current();
 
-  // Tool descriptions are knowledge: purpose/2 in kb/system.pl ("to start here: …" → "Start here: …").
+  // Tool descriptions are knowledge: purpose/2 in the explorer pack ("to start here: …" → "Start here: …").
   const docs = await cached("tool_docs", () => engine.api<Record<string, string>>("tool_docs"));
   const describe = (tool: string, usage: string) => {
     const purpose = (docs[tool] ?? "").replace(/^to /, "");
@@ -107,7 +111,7 @@ export async function knowledgeServer(session?: Session): Promise<McpServer> {
       "verify_task_onboarding",
       {
         title: "Verify onboarding for a task",
-        description: describe("verify_task_onboarding", "Progress comes from kb/progress.pl and from `completed`."),
+        description: describe("verify_task_onboarding", "Progress comes from completed/2 facts (the pack's progress.pl and local overrides, which record_progress changes) and from `completed`."),
         inputSchema: {
           service: z.string().min(1).describe("Service id, e.g. 'injectx' or 'riskx'."),
           userId: z
@@ -118,7 +122,7 @@ export async function knowledgeServer(session?: Session): Promise<McpServer> {
           completed: z
             .array(z.string().min(1))
             .default([])
-            .describe("Items already done in this session (e.g. repositories already cloned), in addition to kb/progress.pl."),
+            .describe("Items already done, for this answer only; record_progress keeps them."),
           ...scoped,
         },
         annotations: readOnly,
@@ -177,6 +181,82 @@ export async function knowledgeServer(session?: Session): Promise<McpServer> {
           return { content: [{ type: "text", text: JSON.stringify({ goal, answers, truncated, kb_version: kb.version }) }] };
         } catch (e) {
           return failure(`Query stopped: ${(e as Error).message}`);
+        }
+      },
+    );
+
+  /** A change's outcome as a tool answer: a problem becomes a tool error. */
+  const outcome = (o: Outcome, extra: Record<string, unknown> = {}): Result => ({
+    content: [{ type: "text", text: JSON.stringify({ ...o, ...extra }) }],
+    isError: o.problem ? true : undefined,
+  });
+
+  if (await offered("record_progress"))
+    server.registerTool(
+      "record_progress",
+      {
+        title: "Record setup progress",
+        description: describe("record_progress",
+          "Marks steps done (done: true) or not done (false) as local completed/2 facts; leave items empty for every step of the service, e.g. done: false to reset it before setting it up from scratch. The explorer shows the change at once, with who made it."),
+        inputSchema: {
+          service: z.string().min(1).describe("Service id, e.g. 'injectx'."),
+          items: z.array(z.string().min(1)).default([]).describe("Steps to mark, as verify_task_onboarding lists them; empty for all of them."),
+          done: z.boolean().describe("true when the steps are done, false to mark them not done."),
+          userId: z
+            .string()
+            .default(session?.user ?? "")
+            .describe(session ? "Whose progress: yourself unless your role has technical access." : "Whose progress, e.g. 'adam': the person you are working for."),
+          ...scoped,
+        },
+        annotations: changes,
+      },
+      async ({ service, items, done, userId, scope }) => {
+        try {
+          const { engine } = await current();
+          if (!(await mayUse(engine, roleOf(scope), "record_progress"))) return failure(`record_progress is not available to role '${roleOf(scope)}'.`);
+          if (!userId) return failure("Say whose progress this is in userId, e.g. 'adam'.");
+          if (session && userId !== session.user && !session.features.includes("technical")) return failure("You can only record your own progress.");
+          const o = await recordProgress(userId, service, items, done, { user: session?.user ?? userId, via: "mcp" });
+          if (o.problem) return outcome(o);
+          const { engine: after } = await current();
+          const v = await after.verify(userId, service, [], roleOf(scope));
+          return outcome({ ...o, changes: undefined }, { ready: v.ready, summary: v.summary, missing: v.missing });
+        } catch (e) {
+          return failure(`Knowledge base error: ${(e as Error).message}`);
+        }
+      },
+    );
+
+  // Signed in, the change is the person's own; otherwise the call says whose it is.
+  const actorField: { userId?: z.ZodDefault<z.ZodString> } = session ? {} : {
+    userId: z.string().min(1).default("current_agent").describe("Who is making the change, e.g. 'adam' for the person you are working for."),
+  };
+
+  if (await offered("change_facts"))
+    server.registerTool(
+      "change_facts",
+      {
+        title: "Change facts locally",
+        description: describe("change_facts",
+          "One change per call: add facts (Prolog text, one or more), read facts from a URL, remove a fact, edit a fact into another, or undo changes by id. Rules, derived facts and who-sees-what are refused, with the reason."),
+        inputSchema: {
+          add: z.string().max(65_536).optional().describe("Facts to add, e.g. completed(adam, onboarding)."),
+          url: z.string().url().optional().describe("A Prolog file over http(s) whose facts to add."),
+          remove: z.string().optional().describe("A fact to remove, e.g. invites(richard, 'liquidity-house')."),
+          edit: z.object({ fact: z.string(), with: z.string() }).optional().describe("A fact and the fact to put in its place."),
+          undo: z.array(z.string()).optional().describe("Ids of local changes to take back."),
+          ...actorField,
+          ...scoped,
+        },
+        annotations: { ...changes, openWorldHint: true },
+      },
+      async ({ add, url, remove, edit, undo, userId, scope }) => {
+        try {
+          const { engine } = await current();
+          if (!(await mayUse(engine, roleOf(scope), "change_facts"))) return failure(`change_facts is not available to role '${roleOf(scope)}'.`);
+          return outcome(await changeFacts({ add, url, remove, edit, undo }, { user: session?.user ?? userId ?? "current_agent", via: "mcp" }));
+        } catch (e) {
+          return failure(`Knowledge base error: ${(e as Error).message}`);
         }
       },
     );

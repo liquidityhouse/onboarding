@@ -1,0 +1,13 @@
+{
+  "summary": "Liquidity House's onboarding, platform and risk knowledge: what a new joiner sets up and who gets them in, how the services fit together, and how operators' limits and warnings follow from their figures",
+  "needs": [
+    "knowledge/knowledge_explorer"
+  ],
+  "files": [
+    "onboarding.pl",
+    "riskx.pl",
+    "progress.pl",
+    "schema.pl",
+    "vocabulary.pl"
+  ]
+}

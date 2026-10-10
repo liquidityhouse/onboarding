@@ -2,7 +2,7 @@
 %
 % npm run readme asks api(readme) and renders these sections as Markdown. Every
 % heading, sentence and table cell comes from facts, rules and the lexicon, so the
-% README follows the system's description and is never edited by hand.
+% README follows the explorer's description and is never edited by hand.
 %
 % Blocks: para(Text) | bullets(Items) | table(Columns, Rows) | code(Lang, Text)
 %         | graph(Nodes, Edges) with Nodes = [Id-Label] and Edges = [From-To]
@@ -20,11 +20,6 @@ readme_section(readme_explorer).
 readme_section(readme_practices).
 
 % --- Wording helpers ---
-% "to serve the explorer" -> "Serve the explorer"
-plain(Text, Plain) :-
-    ( sub_atom(Text, 0, 3, After, 'to ') -> sub_atom(Text, 3, After, 0, T) ; T = Text ),
-    capitalise(T, Plain).
-
 % A thing's description: its stated purpose, else its source files' header comments.
 described(X, D) :- purpose(X, P), !, plain(P, D).
 described(X, D) :- findall(S, described_as(X, S), [S|_]), !, capitalise(S, D).
@@ -49,7 +44,7 @@ readme_blocks(readme_overview, [para(Intro), para(Domains), graph(Nodes, Edges)]
     findall(L, ( domain(D), label_of(D, L) ), Ls), join_and(Ls, DT),
     connective(organised_in, Org),
     format(atom(D0), "~w ~w", [Org, DT]), as_sentence(D0, Domains),
-    findall(A-B, uses(A, B), Edges),
+    findall(A-B, uses(A, B), Edges0), sort(Edges0, Edges),
     findall(X, ( member(A-B, Edges), ( X = A ; X = B ) ), Xs0), sort(Xs0, Xs),
     findall(X-NL, ( member(X, Xs), entity_type(X, T), noun_of(T, TN),
                     format(atom(NL), "~w (~w)", [X, TN]) ), Nodes).
@@ -94,8 +89,11 @@ readme_blocks(readme_knowledge, [para(Intro), table(Cols, Rows)]) :-
     noun_of(knowledge_base, Name),
     exists_to(knowledge_base, Name, Intro),
     headings([file, file_summary], Cols),
+    % The engine's files, then each pack followed by its files.
+    findall(F, ( kb_file(knowledge_base, F)
+               ; knowledge_pack(knowledge_base, P), ( F = P ; kb_file(P, F) ) ), Fs),
     findall(arr([FC, S]),
-            ( kb_file(knowledge_base, F), code_cell(F, FC),
+            ( member(F, Fs), code_cell(F, FC),
               ( file_summary(F, S0) -> capitalise(S0, S) ; connective(none, S) ) ),
             Rows).
 

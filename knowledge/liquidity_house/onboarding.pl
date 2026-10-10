@@ -6,6 +6,8 @@
 % --- Who we are ---
 % GOAT (goat.gs) is the umbrella organisation. Liquidity House is our team
 % inside it, building the bankroll product at liquidity.house.
+% This pack is what the knowledge explorer explores here, so it is named after us.
+explores(knowledge_explorer, liquidity_house).
 part_of(liquidity_house, goat_gaming).
 builds(liquidity_house, bankroll).
 product_domain(bankroll, 'liquidity.house').

@@ -12,10 +12,13 @@
 //   GET  /api/kb, /api/kb.pl            the KB itself                 roles with the technical feature
 //   GET  /api/audit                     stated vs derived in symbols, compression candidates   technical
 //   POST /api/plan   { keep, kindsOff, maxRules, exceptions, alternatives }   best candidate sets   technical
+//   GET  /api/overrides                 the local changes to facts (state/overrides.json)     technical
+//   POST /api/overrides  { add | url | remove | edit: {fact, with} | undo: [id] }            technical
+//   POST /api/progress   { service, items?, done, who? }   mark setup steps done or not done
 //   POST /mcp                           the MCP tools of lib/mcp-tools.ts over Streamable HTTP, stateless
 //   GET  /*                             ./public; *.ts served as JS with types stripped
 //
-// Which role may call which endpoint is knowledge, not code: kb/system.pl states what
+// Which role may call which endpoint is knowledge, not code: the explorer pack states what
 // each endpoint requires and can_call/2 decides. An endpoint missing there is refused.
 //
 // Identity (KB_AUTH):
@@ -36,6 +39,7 @@ import { current, type Current } from "./lib/kb-service.ts";
 import type { Audit, PlanRequest, Problem, Session, SessionInfo } from "./lib/kb-types.ts";
 import { knowledgeServer } from "./lib/mcp-tools.ts";
 import { plans } from "./lib/optimiser.ts";
+import { changeFacts, listChanges, recordProgress, type ChangeRequest } from "./lib/overrides.ts";
 import { literal } from "./lib/prolog.ts";
 
 const ROOT = import.meta.dirname;
@@ -100,8 +104,9 @@ async function identify(req: IncomingMessage, cur: Current): Promise<Session> {
 
 const can = (s: Session, feature: string) => s.features.includes(feature);
 
-/** Each route's endpoint id, as kb/system.pl names it. */
+/** Each route's endpoint id, as the explorer pack names it. */
 const ENDPOINT: Record<string, string> = {
+  health: "GET /api/health",
   session: "GET /api/session",
   graph: "GET /api/graph",
   explain: "GET /api/explain/:entity",
@@ -113,6 +118,10 @@ const ENDPOINT: Record<string, string> = {
   "kb.pl": "GET /api/kb.pl",
   audit: "GET /api/audit",
   "POST plan": "POST /api/plan",
+  overrides: "GET /api/overrides",
+  "POST overrides": "POST /api/overrides",
+  "POST progress": "POST /api/progress",
+  "POST mcp": "POST /mcp",
 };
 
 /** Authorisation from the knowledge base: can_call(Role, Endpoint). */
@@ -151,6 +160,19 @@ function planRequest(raw: Record<string, unknown>, audit: Audit): PlanRequest {
     exceptions: raw.exceptions as boolean | undefined,
     alternatives: int("alternatives", 1, 5) ?? 3,
   };
+}
+
+/** A change request with only the fields it may have, each of the right type. */
+function changeRequest(raw: Record<string, unknown>): ChangeRequest {
+  const text = (key: string) => {
+    const v = raw[key];
+    if (v !== undefined && typeof v !== "string") throw new HttpError(400, `${key} must be text`);
+    return v as string | undefined;
+  };
+  const edit = raw.edit as { fact?: unknown; with?: unknown } | undefined;
+  if (edit !== undefined && (typeof edit?.fact !== "string" || typeof edit?.with !== "string")) throw new HttpError(400, "edit must give fact and with");
+  if (raw.undo !== undefined && (!Array.isArray(raw.undo) || raw.undo.some((x) => typeof x !== "string"))) throw new HttpError(400, "undo must list change ids");
+  return { add: text("add"), url: text("url"), remove: text("remove"), edit: edit as ChangeRequest["edit"], undo: raw.undo as string[] | undefined };
 }
 
 async function body(req: IncomingMessage, limit = 16_384): Promise<Record<string, unknown>> {
@@ -226,6 +248,21 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL) {
       const audit = await cached<Audit>(`audit|${role}`, () => engine.audit(role));
       return json(res, { plans: await plans(audit, planRequest(await body(req), audit)) });
     }
+    case "overrides":
+      return json(res, { changes: await listChanges() });
+    case "POST overrides":
+      return answer(res, await changeFacts(changeRequest(await body(req, 70_000)), { user: session.user, via: "explorer" }));
+    case "POST progress": {
+      const b = await body(req);
+      // As for verify: recording someone else's progress is for roles with technical access.
+      const who = typeof b.who === "string" && b.who ? b.who : session.user;
+      if (who !== session.user && !can(session, "technical")) throw new HttpError(403, "you can only record your own progress");
+      if (typeof b.service !== "string" || !b.service) throw new HttpError(400, "missing service");
+      if (typeof b.done !== "boolean") throw new HttpError(400, "done must be true or false");
+      const items = b.items ?? [];
+      if (!Array.isArray(items) || items.some((x) => typeof x !== "string")) throw new HttpError(400, "items must list requirement ids");
+      return answer(res, await recordProgress(who, b.service, items as string[], b.done, { user: session.user, via: "explorer" }));
+    }
     case "kb":
     case "kb.pl": {
       const etag = `"${kb.version}"`;
@@ -257,7 +294,7 @@ async function mcp(req: IncomingMessage, res: ServerResponse) {
   if (AUTH === "proxy") {
     const cur = await current();
     session = await identify(req, cur);
-    await authorise(cur, session.role, "POST /mcp");
+    await authorise(cur, session.role, ENDPOINT["POST mcp"]);
   } else {
     // Dev identity trusts whoever asks, so only local clients may: no other sites, no DNS rebinding.
     const origin = header(req, "origin");

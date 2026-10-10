@@ -98,6 +98,11 @@ capitalise(A, B) :-
     atom_codes(B, [U|Cs]).
 capitalise(A, A).
 
+% A purpose as a phrase: "to serve the explorer" -> "Serve the explorer".
+plain(Text, Plain) :-
+    ( sub_atom(Text, 0, 3, After, 'to ') -> sub_atom(Text, 3, After, 0, T) ; T = Text ),
+    capitalise(T, Plain).
+
 unit_of(C, U) :- unit(C, U), !.
 unit_of(_, plain).
 

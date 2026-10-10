@@ -88,21 +88,21 @@ api_term(session(email(E)), J) :- !,
     (   email_address(U, A), A == E, user_account(U, R) -> session_json(U, R, J)
     ;   J = obj([email-E, problem-'no account for this email']) ).
 
-session_json(U, R, obj([user-U, name-N, role-R, role_label-RL, domains-arr(Ds), features-arr(Fs), start-St])) :-
-    label_of(U, N), label_of(R, RL),
+session_json(U, R, obj([user-U, name-N, role-R, role_label-RL, domains-arr(Ds), features-arr(Fs), start-St, title-T, tagline-G])) :-
+    label_of(U, N), label_of(R, RL), app_title(T), app_tagline(G),
     findall(D, role_domain(R, D), Ds),
     findall(F, role_feature(R, F), Fs),
     ( role_start(R, St) -> true ; St = null ).
 
-% allowed(Role, Endpoint): the web server's authorisation, from can_call/2 (system.pl).
+% allowed(Role, Endpoint): the web server's authorisation, from can_call/2 (explorer pack).
 api_term(allowed(Role, Endpoint), obj([allowed-bool(B)])) :-
     ( can_call(Role, Endpoint) -> B = true ; B = false ).
 
-% may_use(Role, Tool): the MCP tools' authorisation, from can_use/2 (system.pl).
+% may_use(Role, Tool): the MCP tools' authorisation, from can_use/2 (explorer pack).
 api_term(may_use(Role, Tool), obj([allowed-bool(B)])) :-
     ( can_use(Role, Tool) -> B = true ; B = false ).
 
-% tool_docs: MCP tool descriptions, from purpose/2 (system.pl).
+% tool_docs: MCP tool descriptions, from purpose/2 (explorer pack).
 api_term(tool_docs, obj(Docs)) :-
     findall(T-D, ( mcp_tool(T, _), purpose(T, D) ), Docs).
 
@@ -127,11 +127,11 @@ api_term(graph(Role), obj([
             ( derived_predicate(P, _, D), role_domain(Role, D), rule_json(Role, P, RJ) ), RDs),
     findall(T, scoped_triple(Role, T), Raw0),
     counted(Raw0, Raw),   % a conclusion reached two ways is still one edge; W counts the ways
-    findall(obj([s-S, p-L, o-O, pred-P, domain-D, derived-bool(B), kind-RK, severity-Sv, ways-W, via-Via]),
+    findall(obj([s-S, p-L, o-O, pred-P, domain-D, derived-bool(B), kind-RK, severity-Sv, ways-W, via-Via, change-Ch]),
             ( member(t(S, L, O, P, K)-W, Raw),
               pred_domain(P, D),
               G =.. [P, S, O], severity(G, Sv),
-              relation_kind(P, RK),
+              fact_kind(G, RK), change_of(G, Ch),
               ( K == derived -> B = true, via_of(Role, G, Via) ; B = false, Via = null ) ),
             Trs),
     findall(X, ( member(t(S, _, O, _, _)-_, Raw), ( X = S ; X = O ), atom(X) ), Xs0),
@@ -154,7 +154,12 @@ rule_source(P, I, _, [source-obj([file-F, line-L, text-T])]) :-
 rule_source(_, _, Named, [pattern-Pat]) :- clause_pattern(Named, Pat).
 
 % Where a stated fact is written: the clause_source/6 entry that reads as exactly this
-% fact, or, for a generated one, the module that generates it.
+% fact, or, for a generated one, the module that generates it, or, for a local one, the
+% state file and the change that added it.
+fact_source(G, obj([file-F, local-bool(true), text-T])) :-
+    local_fact(G), !,
+    keeps_state_in(override_store, F),
+    format(atom(T0), "~q.", [G]), T = T0.
 fact_source(G, obj([file-F, line-L, text-T])) :-
     functor(G, P, A),
     catch(clause_source(P, A, _, F, L, T), _, fail),
@@ -172,6 +177,90 @@ generation(G, _, origin, obj([label-L, file-F, line-N, text-T])) :-
     once(catch(generated_origin(G, F, N, T), _, fail)), label_of(generated_origin, L).
 generation(_, P, generator, obj([label-L, file-F, line-N, text-T])) :-
     once(catch(generator_code(P, F, N, T), _, fail)), label_of(generator_code, L).
+
+% The change behind a local fact, for everyone: who made it, how and when.
+change_of(G, J) :- once(local_change(Id, add, G, B, V, At, S)), !, change_json(Id, add, G, B, V, At, S, J).
+change_of(_, null).
+
+change_json(Id, Op, G, B, V, At, S, obj([id-Id, op-Op, fact-C, text-T, summary-Sum, by-B, by_name-BN, by_role-RL, via-V, via_label-VL, at-At, stale-bool(St)|Src])) :-
+    format(atom(C), "~q", [G]),
+    ( catch(sentence(G, T0), _, fail) -> T = T0 ; T = C ),
+    label_of(B, BN), ( user_account(B, R) -> label_of(R, RL) ; RL = null ),
+    noun_of(V, VL),
+    ( local_stale(Id) -> St = true ; St = false ),
+    source_json(S, Src),
+    change_summary(Op, BN, RL, VL, S, Sum).
+
+% "Added by Adam, Software Engineer (Developer) through the explorer, pasted"
+change_summary(Op, BN, RL, VL, S, Sum) :-
+    ( Op == add -> connective(added_by, A) ; connective(removed_by, A) ),
+    ( RL == null -> Who = BN ; format(atom(Who), "~w (~w)", [BN, RL]) ),
+    connective(through, Th),
+    source_phrase(S, SP),
+    format(atom(Sum0), "~w ~w ~w ~w~w", [A, Who, Th, VL, SP]), capitalise(Sum0, Sum1),
+    Sum = Sum1.
+
+source_phrase(url(U), P) :- !, connective(read_from, R), format(atom(P0), ", ~w ~w", [R, U]), P = P0.
+source_phrase(replaces(Old), P) :- !, connective(replacing, R),
+    ( catch(sentence(Old, T), _, fail) -> true ; format(atom(T), "~q", [Old]) ),
+    format(atom(P0), ", ~w: ~w", [R, T]), P = P0.
+source_phrase(pasted, P) :- !, connective(pasted, R), format(atom(P0), ", ~w", [R]), P = P0.
+source_phrase(_, '').
+
+source_json(url(U), [source-U]) :- !.
+source_json(replaces(Old), [replaces-T]) :- !, ( catch(sentence(Old, T0), _, fail) -> T = T0 ; format(atom(T), "~q", [Old]) ).
+source_json(pasted, [source-pasted]) :- !.
+source_json(_, []).
+
+% overrides: every local change, oldest first.
+api_term(overrides, obj([changes-arr(Cs)])) :-
+    findall(J, ( local_change(Id, Op, G, B, V, At, S), change_json(Id, Op, G, B, V, At, S, J) ), Cs).
+
+% fact_check(Text): whether Text is a fact that may be changed here, in canonical form and
+% in words, whether it holds now and, when it is stated, where it is written.
+api_term(fact_check(Text), J) :-
+    (   catch(read_term_from_atom(Text, G, []), _, fail) -> checked_fact(G, J)
+    ;   J = obj([problem-'not a Prolog term']) ).
+
+checked_fact(G, obj([problem-P])) :- fact_problem(G, P), !.
+checked_fact(G, obj([fact-C, text-T, predicate-PA, holds-bool(H), kind-K, shown-bool(Sh), change-Ch|Site])) :-
+    format(atom(C), "~q", [G]), functor(G, P, A), format(atom(PA), "~w/~w", [P, A]),
+    ( catch(sentence(G, T0), _, fail) -> T = T0 ; T = C ),
+    ( catch(G, _, fail) -> H = true ; H = false ),
+    ( H == true -> fact_kind(G, K) ; K = null ),
+    ( kb_predicate(P, A, _) -> Sh = true ; Sh = false ),
+    change_of(G, Ch),
+    ( H == true, \+ local_fact(G), fact_source(G, S), S = obj(L), \+ memberchk(generated-_, L) -> Site = [site-S] ; Site = [] ).
+
+fact_problem(G, 'only facts can be changed here, not rules or directives') :- ( G = (_ :- _) ; G = (:- _) ), !.
+fact_problem(G, 'a fact looks like relation(argument, …)') :- \+ compound(G), !.
+fact_problem(G, 'a fact cannot contain variables') :- \+ ground(G), !.
+fact_problem(G, P) :- functor(G, N, A), protected_relation(N, A), !,
+    format(atom(P), "~w/~w decides who may see and do what, so it is changed only in the pack files", [N, A]).
+fact_problem(G, P) :- functor(G, N, A), derived_predicate(N, A, _), !,
+    format(atom(P), "~w/~w is worked out by a rule: change the facts it uses instead", [N, A]).
+fact_problem(G, P) :- functor(G, N, A), \+ changeable(N, A), !,
+    format(atom(P), "~w/~w is not a relation any knowledge pack states", [N, A]).
+
+% A relation can be changed locally when a pack states it: a graph relation, or facts in a pack file.
+changeable(N, A) :- kb_predicate(N, A, _), !.
+changeable(N, A) :- catch(clause_source(N, A, _, F, _, T), _, fail), sub_atom(F, 0, _, _, 'knowledge/'), \+ sub_atom(T, _, _, _, ':-'), !.
+
+% progress_plan(Who, Service, Items, Done): the changes that mark Items (all of the service's
+% requirements when empty) done or not done for Who: add completed/2, or undo or remove it.
+api_term(progress_plan(Who, Service, Items0, Done), J) :-
+    findall(I, prerequisite(Service, I), Is0), dedupe(Is0, All),
+    (   All == [] -> format(atom(P), "no requirements are recorded for ~w", [Service]), J = obj([problem-P])
+    ;   ( Items0 == [] -> Items = All ; Items = Items0 ),
+        (   member(I, Items), \+ memberchk(I, All)
+        ->  format(atom(P), "~w is not needed for ~w", [I, Service]), J = obj([problem-P])
+        ;   findall(Op, ( member(I, Items), progress_op(completed(Who, I), Done, Op) ), Ops),
+            J = obj([ops-arr(Ops)]) ) ).
+
+progress_op(G, true, obj([op-add, fact-C, text-T])) :- \+ catch(G, _, fail), format(atom(C), "~q", [G]), sentence(G, T).
+progress_op(G, false, obj([op-undo, id-Id])) :- once(local_change(Id, add, G, _, _, _, _)).
+progress_op(G, false, obj([op-remove, fact-C, text-T, site-S])) :-
+    \+ local_fact(G), catch(G, _, fail), fact_source(G, S), format(atom(C), "~q", [G]), sentence(G, T).
 
 % A stated fact's source, for technical roles.
 stated_source(Role, G, [source-J]) :- role_feature(Role, technical), fact_source(G, J), !.
@@ -206,7 +295,7 @@ api_term(explain(E, Role), obj([id-E, type-T, phrase-Ph, similar-arr(Sim), simil
     findall(Txt-H, ( kb_predicate(P, N, D), role_domain(Role, D), functor(H, P, N),
                      catch(H, _, fail), mentions(H, E), sentence(H, Txt) ), Fs0),
     keysort(Fs0, Fs1), first_per_key(Fs1, Hs),
-    findall(obj([text-Txt, kind-K|Src]), ( member(H, Hs), sentence(H, Txt), functor(H, P, _), relation_kind(P, K), stated_source(Role, H, Src) ), Fs),
+    findall(obj([text-Txt, kind-K, change-Ch|Src]), ( member(H, Hs), sentence(H, Txt), fact_kind(H, K), change_of(H, Ch), stated_source(Role, H, Src) ), Fs),
     findall(GA-obj([predicate-P, severity-Sv, goal-GA, text-Txt, via-Via, lines-arr(Ls)]),
             ( derived_predicate(P, 2, D), role_domain(Role, D),
               G =.. [P, E, _],
@@ -355,8 +444,8 @@ api_term(verify(_, _, _, Role), obj([problem-'requirements are not in this role 
 api_term(verify(Who, Service, Done, _), J) :-
     findall(I, prerequisite(Service, I), Is0),
     dedupe(Is0, Is),
-    findall(obj([item-I, type-T, action-A, satisfied-bool(B), link-Link, ask-arr(Ps), because-arr(Why)]),
-            ( member(I, Is), entity_type(I, T), action_of(T, A),
+    findall(obj([item-I, type-T, action-A, satisfied-bool(B), link-Link, ask-arr(Ps), because-arr(Why), change-Ch]),
+            ( member(I, Is), entity_type(I, T), action_of(T, A), change_of(completed(Who, I), Ch),
               ( done(Who, I, Done) -> B = true ; B = false ),
               ( url(I, U) -> Link = U ; Link = null ),
               findall(P, catch(invites(P, I), _, fail), Ps),
@@ -367,7 +456,8 @@ api_term(verify(Who, Service, Done, _), J) :-
     ( Is == [] -> Known = false ; Known = true ),
     ( Is \== [], Missing == [] -> Ready = true ; Ready = false ),
     verify_summary(Who, Service, Is, Missing, Summary),
-    J = obj([who-Who, service-Service, known-bool(Known), ready-bool(Ready), summary-Summary,
+    label_of(Who, WN), ( user_account(Who, WR) -> label_of(WR, WRL) ; WRL = null ),
+    J = obj([who-Who, who_name-WN, who_role-WRL, service-Service, known-bool(Known), ready-bool(Ready), summary-Summary,
              missing-arr(MissingIds), requirements-arr(Items)]).
 
 because(S, S, [T]) :- !, noun_of(own_repository, N), as_sentence(N, T).
@@ -425,7 +515,7 @@ explain_parsed(Text, G, Vs, Max, Role, J) :-
               findall(Name-Val, member(Name=Val, Vs1), Bs),
               sentence(G1, T), severity(G1, Sv), via_json(Role, P1, Via),
               ( P1 = rule(_, true, _, _) -> Dv = false, stated_source(Role, G1, Src) ; Dv = true, Src = [] ),
-              ( Dv == true -> AK = derived ; functor(G1, GP, _), relation_kind(GP, AK) ),
+              ( Dv == true -> AK = derived ; fact_kind(G1, AK) ),
               once(proof_lines(P1, 0, Lines)), lines_text(Lines, X),
               findall(obj([depth-D, kind-K, text-LT]), member(line(D, K, LT), Lines), Ls) ),
             Answers),

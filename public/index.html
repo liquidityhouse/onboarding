@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Liquidity House Knowledge Explorer</title>
+  <title>Knowledge Explorer</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml" sizes="any">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
@@ -18,8 +18,8 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <strong>Liquidity House Knowledge Explorer</strong>
-      <span class="muted">Explore how operators, limits and risks connect</span>
+      <strong id="app-title">Knowledge Explorer</strong>
+      <span id="app-tagline" class="muted"></span>
     </div>
     <div class="topbar-controls">
       <label>User
@@ -40,6 +40,7 @@
   </header>
 
   <div id="banner" class="banner" hidden></div>
+  <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 
   <main class="layout">
     <aside class="sidebar" aria-label="Exploration controls">
@@ -96,6 +97,11 @@
             <option value="DU">Bottom → up</option>
           </select>
         </label>
+      </section>
+
+      <section id="overrides-section" hidden>
+        <h3 id="overrides-title">Local overrides</h3>
+        <div id="overrides" class="overrides"></div>
       </section>
 
       <section>

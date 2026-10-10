@@ -3,8 +3,8 @@
 
 import { DataSet, Network, type Edge, type Node as VisNode, type Options } from "vis-network/standalone";
 import type {
-  Audit, AuditRelation, Candidate, Explanation, GoalExplanation, Graph, Kind, KnowledgeKind, Line, Plan, Rule, Session, SessionInfo,
-  Snippet, Source, Triple, TypeStyle, Via,
+  Audit, AuditRelation, Candidate, Change, Explanation, GoalExplanation, Graph, Kind, KnowledgeKind, Line, Outcome, Plan, Rule, Session,
+  SessionInfo, Snippet, Source, Triple, TypeStyle, Verification, Via,
 } from "../lib/kb-types.ts";
 
 type View = "mindmap" | "hierarchy" | "table" | "audit";
@@ -20,8 +20,10 @@ interface Settings {
   hiddenPredicates: string[];
   hiddenTypes: string[];
   showValues: boolean;
-  /** Which kinds of knowledge are shown (stated, generated, derived); the audit's relation filter shares it. */
+  /** Which kinds of knowledge are shown, as the knowledge base names them; the audit's relation filter shares it. */
   kinds: KnowledgeKind[];
+  /** Kinds this viewer has been shown before; a kind new to the knowledge base starts ticked. */
+  seenKinds: KnowledgeKind[];
   edgeLabels: boolean;
   sizeByDegree: boolean;
   clickRecentres: boolean;
@@ -362,7 +364,8 @@ function defaults(s: Session): Settings {
     hiddenPredicates: [],
     hiddenTypes: [],
     showValues: s.role === "risk_officer",
-    kinds: ["stated", "generated", "derived"],
+    kinds: [],
+    seenKinds: [],
     edgeLabels: true,
     sizeByDegree: false,
     clickRecentres: true,
@@ -381,11 +384,20 @@ function loadSettings() {
   const legacy = saved as Partial<Settings> & { showDerived?: boolean };
   if (!saved.kinds) settings.kinds = legacy.showDerived === false ? ["stated", "generated"] : ["stated", "generated", "derived"];
   delete (settings as Partial<Settings> & { showDerived?: boolean }).showDerived;
+  settings.seenKinds = saved.seenKinds ?? saved.kinds ?? [];
+  syncKinds();
   const seen = saved.seenDomains ?? saved.domains ?? s.domains;
   const fresh = s.domains.filter((d) => !seen.includes(d));
   settings.domains = [...settings.domains, ...fresh].filter((d) => s.domains.includes(d));
   settings.seenDomains = [...new Set([...seen, ...s.domains])];
   if (!VIEWS.some((v) => v.id === settings.view && (!v.feature || can(v.feature)))) settings.view = "mindmap";
+}
+
+/** Kinds of knowledge the knowledge base names for the first time start ticked, like new domains. */
+function syncKinds() {
+  const fresh = snap.kinds.map((k) => k.id).filter((k) => !settings.seenKinds.includes(k));
+  settings.kinds = [...new Set([...settings.kinds, ...fresh])];
+  settings.seenKinds = [...settings.seenKinds, ...fresh];
 }
 
 function save() {
@@ -400,6 +412,136 @@ function history_replace(hash: string) {
 }
 
 // --- Scope & graph construction ---
+// --- Local overrides: facts changed on this machine (lib/overrides.ts), outlined in gold ---
+const when = (at: string) => new Date(at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+
+/** The "i" of a local fact: who changed it, through what and when, then what a local override is. */
+const changeInfo = (c: Change) =>
+  infoButton(kindOf("local").label, `${c.summary}, ${when(c.at)}.${c.stale ? " It no longer applies: the fact is not where it was written." : ""} ${kindOf("local").hint}.`);
+
+/** A fact as written, without the comment lines above it. */
+const clauseOf = (text: string) => text.split("\n").filter((l) => !/^\s*%/.test(l)).join("\n");
+
+/** Send a change, say what happened, and reload the knowledge it changed. */
+async function changeKnowledge(path: string, body: unknown) {
+  try {
+    const o = await api<Outcome>(path, { method: "POST", body: JSON.stringify(body) });
+    const said = [
+      o.added?.length ? `added ${o.added.map((a) => a.text).join(" ")}` : "",
+      o.removed?.length ? `removed ${o.removed.map((a) => a.text).join(" ")}` : "",
+      o.undone?.length ? `took back ${o.undone.length} change${o.undone.length > 1 ? "s" : ""}` : "",
+      o.skipped?.length ? `skipped ${o.skipped.map((s) => `${s.text} (${s.reason})`).join("; ")}` : "",
+    ].filter(Boolean);
+    notice(said.length ? said.join(" · ") : "Nothing changed.", Boolean(o.skipped?.length && !o.added?.length));
+  } catch (e) {
+    notice((e as Error).message, true);
+  }
+  await refresh(true);
+}
+
+function notice(text: string, problem = false) {
+  const n = $("notice");
+  n.textContent = text.charAt(0).toUpperCase() + text.slice(1);
+  n.className = `notice${problem ? " problem" : ""}`;
+  n.hidden = false;
+  window.clearTimeout(Number(n.dataset.timer));
+  n.dataset.timer = String(window.setTimeout(() => { n.hidden = true; }, 8000));
+}
+
+/**
+ * What a technical role can do with a fact: undo a local one; edit or remove a stated one
+ * (as written in its pack). Generated and derived facts change where they come from.
+ */
+function factActions(kind: KnowledgeKind, change: Change | null, source?: Source): HTMLElement | string {
+  if (!can("technical")) return "";
+  const box = el("span", { className: "fact-actions" });
+  if (kind === "local" && change) {
+    const undo = el("button", { type: "button", className: "link", textContent: "Undo" });
+    undo.onclick = (e) => { e.stopPropagation(); changeKnowledge("/api/overrides", { undo: [change.id] }); };
+    box.append(undo);
+  } else if (kind === "stated" && source && !source.generated && !source.local) {
+    const fact = clauseOf(source.text);
+    const editB = el("button", { type: "button", className: "link", textContent: "Edit" });
+    const remove = el("button", { type: "button", className: "link", textContent: "Remove here" });
+    remove.onclick = (e) => { e.stopPropagation(); changeKnowledge("/api/overrides", { remove: fact }); };
+    editB.onclick = (e) => {
+      e.stopPropagation();
+      const area = el("textarea", { className: "fact-edit", value: fact, rows: Math.max(1, fact.split("\n").length) });
+      const save = el("button", { type: "button", textContent: "Save here" });
+      const cancel = el("button", { type: "button", textContent: "Cancel" });
+      save.onclick = () => changeKnowledge("/api/overrides", { edit: { fact, with: area.value } });
+      cancel.onclick = () => form.replaceWith(box);
+      const form = el("div", { className: "fact-form" }, area, el("div", { className: "row" }, save, cancel));
+      box.replaceWith(form);
+      area.focus();
+    };
+    box.append(editB, " · ", remove);
+  }
+  return box.childElementCount ? box : "";
+}
+
+/** One fact line: gold with its "i" when it is a local override, with what can be done to it. */
+function factLine(text: string, kind: KnowledgeKind, change: Change | null, source?: Source): HTMLElement {
+  return el("li", { className: kind === "local" ? "local" : "" },
+    source ? sourceDetail(source, text) : text, change ? changeInfo(change) : "", factActions(kind, change, source));
+}
+
+/** The sidebar's local overrides, for technical roles: every change, and ways to add facts. */
+async function renderOverrides() {
+  const section = $("overrides-section");
+  section.hidden = !can("technical");
+  if (section.hidden) return;
+  let changes: Change[] = [];
+  try {
+    changes = (await api<{ changes: Change[] }>("/api/overrides")).changes;
+  } catch (e) {
+    return $("overrides").replaceChildren(el("p", { className: "muted" }, (e as Error).message));
+  }
+  $("overrides-title").replaceChildren(`${kindOf("local").label} `, el("span", { className: "muted" }, String(changes.length)), " ", kindInfo("local"));
+  const list = el("ul", { className: "changes" }, ...changes.map((c) => {
+    const undo = el("button", { type: "button", className: "link", textContent: "Undo" });
+    undo.onclick = () => changeKnowledge("/api/overrides", { undo: [c.id] });
+    return el("li", { className: `local ${c.op}${c.stale ? " stale" : ""}`, title: `${c.summary}, ${when(c.at)}` },
+      el("span", { className: "change-op" }, c.op === "add" ? "+" : "−"), ` ${c.text} `, changeInfo(c), " ", undo);
+  }));
+  const facts = el("textarea", { rows: 3, placeholder: "completed(adam, onboarding)." });
+  const add = el("button", { type: "button", textContent: "Add facts" });
+  add.onclick = () => facts.value.trim() && changeKnowledge("/api/overrides", { add: facts.value });
+  const url = el("input", { type: "url", placeholder: "https://…/facts.pl" });
+  const load = el("button", { type: "button", textContent: "Load" });
+  load.onclick = () => url.value.trim() && changeKnowledge("/api/overrides", { url: url.value.trim() });
+  $("overrides").replaceChildren(list, facts, el("div", { className: "row" }, add), el("div", { className: "row" }, url, load));
+}
+
+/**
+ * A service's setup steps for the person picked at the top, in their role, as ticks. Each
+ * tick is a local completed/2 fact, shared with agents over MCP (record_progress).
+ */
+async function checklist(service: string): Promise<HTMLElement | null> {
+  let v: Verification;
+  try {
+    v = await api<Verification>(`/api/verify/${encodeURIComponent(service)}`);
+  } catch {
+    return null; // not in this role's scope
+  }
+  if (!v.known) return null;
+  const items = v.requirements.map((r) => {
+    const box = el("input", { type: "checkbox", checked: r.satisfied });
+    box.onchange = () => changeKnowledge("/api/progress", { service, items: [r.item], done: box.checked });
+    const name = r.link ? el("a", { href: r.link, target: "_blank", rel: "noopener", textContent: r.item }) : r.item;
+    return el("li", { className: r.change ? "local" : "", title: r.because.join(" ") },
+      el("label", {}, box, ` ${r.action} `, name), r.change ? changeInfo(r.change) : "",
+      r.ask.length ? el("span", { className: "muted" }, ` · ${r.ask.join(", ")}`) : "");
+  });
+  const reset = el("button", { type: "button", textContent: "Reset all steps" });
+  reset.title = "Mark every step not done, to set the service up again from scratch";
+  reset.onclick = () => changeKnowledge("/api/progress", { service, items: [], done: false });
+  return el("div", { className: "card setup-steps" },
+    el("div", { className: "headline" }, `${v.who_name}${v.who_role ? ` · ${v.who_role}` : ""}`),
+    el("p", { className: "muted" }, v.summary),
+    el("ul", {}, ...items), el("div", { className: "row" }, reset));
+}
+
 function scopedTriples(): Triple[] {
   const domains = new Set(settings.domains.filter((d) => session().domains.includes(d)));
   const hiddenPreds = new Set(settings.hiddenPredicates);
@@ -529,8 +671,8 @@ function renderGraph() {
     title: edgeTitle(e.triple) as unknown as string,
     arrows: "to",
     dashes: e.triple.derived,
-    width: e.triple.severity === "warning" ? 2.5 : 1,
-    color: { color: e.triple.severity === "warning" ? warn : muted, highlight: cssVar("--accent") },
+    width: e.triple.kind === "local" ? 3 : e.triple.severity === "warning" ? 2.5 : 1,
+    color: { color: e.triple.kind === "local" ? cssVar("--gold") : e.triple.severity === "warning" ? warn : muted, highlight: cssVar("--accent") },
     font: { color: muted, size: 11, strokeWidth: 3, strokeColor: surface, align: "middle" },
     smooth: hierarchical ? { enabled: true, type: "cubicBezier", roundness: 0.4 } : { enabled: true, type: "dynamic", roundness: 0.5 },
   }));
@@ -601,8 +743,8 @@ function renderTable() {
     subject.title = `Centre on ${t.s}`;
     subject.classList.add("centre");
     subject.onclick = (e) => { e.stopPropagation(); setFocus(String(t.s), false); };
-    const tr = el("tr", { className: t.severity === "warning" ? "warning" : "", title: "Show this connection in the side panel" },
-      subject, el("td", { className: t.derived ? "derived" : "" }, t.p, " ", badge), cell(t.o), el("td", {}, domainLabel(t.domain)), el("td", {}, why));
+    const tr = el("tr", { className: `${t.severity === "warning" ? "warning" : ""} ${t.kind === "local" ? "local" : ""}`, title: "Show this connection in the side panel" },
+      subject, el("td", { className: t.derived ? "derived" : "" }, t.p, " ", badge, t.change ? changeInfo(t.change) : ""), cell(t.o), el("td", {}, domainLabel(t.domain)), el("td", {}, why));
     tr.onclick = () => showTriple(t);
     return tr;
   }));
@@ -614,6 +756,9 @@ const domainLabel = (id: string) => snap.domains.find((d) => d.id === id)?.label
 // --- Rendering: sidebar controls ---
 function renderControls() {
   $("role-badge").textContent = session().role_label;
+  document.title = session().title;
+  $("app-title").textContent = session().title;
+  $("app-tagline").textContent = session().tagline;
 
   $("views").replaceChildren(...VIEWS.filter((v) => !v.feature || can(v.feature)).map((v) => {
     const b = el("button", { type: "button", textContent: v.label });
@@ -794,9 +939,14 @@ async function renderExplain() {
     }
   }
 
+  if (ex.type === "service") {
+    const list = await checklist(String(ex.id));
+    if (list && (selected ?? settings.focus) === target) parts.push(el("h3", { className: "ex-section" }, "Setting it up"), list);
+  }
+
   if (ex.facts.length) {
     parts.push(el("h3", { className: "ex-section", title: kindHint("stated") }, `${kindOf("stated").label} `, kindBadge("stated")),
-      el("ul", { className: "facts" }, ...ex.facts.map((f) => el("li", {}, f.source ? sourceDetail(f.source, f.text) : f.text))));
+      el("ul", { className: "facts" }, ...ex.facts.map((f) => factLine(f.text, f.kind, f.change, f.source))));
   }
 
   // Derived connections that point at this entity (the ones above start from it).
@@ -850,6 +1000,7 @@ async function whyBody(t: Triple): Promise<HTMLElement> {
     if (!a.derived) {
       // The kind's meaning is on the badge's "i"; the card shows the fact and where it is written.
       if (a.source) box.append(sourceDetail(a.source));
+      box.append(factActions(a.kind ?? t.kind, t.change, a.source));
       return box;
     }
     const via = a.via ?? t.via;
@@ -876,7 +1027,8 @@ async function showTriple(t: Triple) {
   }
   // The heading is the fact itself (subject, relation, object); the relation alone is not a fact.
   const object = typeof t.o === "number" ? t.o.toLocaleString() : shortLabel(String(t.o));
-  const head = el("div", { className: "ex-head" }, el("h2", { textContent: `${t.s} ${t.p} ${object}` }), kindBadge(t.kind), kindInfo(t.kind));
+  const head = el("div", { className: "ex-head" }, el("h2", { textContent: `${t.s} ${t.p} ${object}` }), kindBadge(t.kind),
+    t.change ? changeInfo(t.change) : kindInfo(t.kind));
   const relation = el("p", { className: "muted relation-line" }, `${snap.words.relation}: `, t.p,
     can("technical") ? el("span", {}, ` (${t.pred})`) : "", ` · ${kindOf(t.kind).label.toLowerCase()}`);
   const others = t.derived ? rulesFor(t.pred).filter((r) => r.clause !== t.via?.rule) : [];
@@ -885,7 +1037,7 @@ async function showTriple(t: Triple) {
     parts.push(el("p", { className: "muted" }, `This connection follows ${t.ways} ways; the first is explained.`));
   }
   parts.push(el("h3", { className: "ex-section" }, t.derived ? "How and why" : "Fact"),
-    el("div", { className: `card ${t.derived ? "derived" : ""}` }, await whyBody(t)));
+    el("div", { className: `card ${t.derived ? "derived" : ""} ${t.kind === "local" ? "local" : ""}` }, await whyBody(t)));
   if (others.length) {
     parts.push(el("details", { className: "other-rules" }, el("summary", {}, `Other rules for “${t.p}”`),
       ...others.map((r) => el("div", { className: "card rule" }, slotted(r), ruleCode(r)))));
@@ -1301,7 +1453,7 @@ function update(full = true) {
   else { network?.destroy(); network = null; }
   if (view === "table") renderTable();
   if (view === "audit") renderAudit();
-  if (full) renderExplain();
+  if (full) { renderExplain(); renderOverrides(); }
 }
 
 // --- Talking to the server ---
@@ -1349,6 +1501,7 @@ async function refresh(force = false) {
     const { version } = await api<{ version: string }>("/api/health");
     if (force || version !== info.version) {
       await loadScope();
+      syncKinds();
       update();
     }
     setLive();
