@@ -53,10 +53,10 @@ renaming(L = R) :- var(L), var(R).
 facts_symbols(Fs, N) :- findall(S, ( member(F, Fs), symbols(F, S) ), Ss), sum_list(Ss, N).
 
 % --- What there is ---
-% audit_relation(Role, P, A, Domain, Kind): Kind = stated | generated | derived.
+% audit_relation(Role, P, A, Domain, Kind): Kind = stated | generated | imported | derived.
 audit_relation(Role, P, A, D, K) :-
     kb_predicate(P, A, D), role_domain(Role, D),
-    ( generated_predicate(P, A) -> K = generated ; K = stated ).
+    relation_kind(P, K).
 audit_relation(Role, P, A, D, derived) :-
     derived_predicate(P, A, D), role_domain(Role, D).
 
@@ -408,11 +408,12 @@ all_candidates(Role, Rels, Cands) :-
 % Candidates that pay come first; near misses (saving above -6) show what almost does.
 api_term(audit(Role), obj([problem-'unknown role'])) :- \+ role(Role), !.
 api_term(audit(Role), obj([totals-obj(Totals), relations-arr(RJs), kinds-arr(Kinds),
-                           candidates-arr(CJs), reads-arr(Reads), implementations-arr(Is)])) :-
+                           candidates-arr(CJs), reads-arr(Reads), implementations-arr(Is), bands-arr(Bs)])) :-
     implementation_costs(Is),
+    findall(obj([id-B, from-F]), cost_band(B, F), Bs),
     audit_rels(Role, Rels),
     findall(J, ( member(R, Rels), relation_json(Rels, R, J) ), RJs),
-    totals(Rels, Totals),
+    totals(Rels, Is, Totals),
     all_candidates(Role, Rels, Cands),
     findall(S-C, ( member(C, Cands), cand_saving(C, S), S > -6 ), Scored0),
     sort(0, @>=, Scored0, Scored),
@@ -423,33 +424,50 @@ api_term(audit(Role), obj([totals-obj(Totals), relations-arr(RJs), kinds-arr(Kin
             ( derived_predicate(P, _, D), role_domain(Role, D), rel_uses(P, Q) ), Reads0),
     sort(Reads0, Reads).
 
+% How big a snippet is, as a traffic light: red from 300 symbols, yellow from 150, green below.
+% The bands are the rule to adjust; the largest bands come first.
+cost_band(red, 300).
+cost_band(yellow, 150).
+cost_band(green, 0).
+band_of(S, B) :- cost_band(B, From), S >= From, !.
+
 % The code behind generated facts and behind the capabilities, endpoints and tools, by its size
 % in symbols (code_symbols/3, counted by lib/kb-source.ts), largest first: where streamlining an
 % implementation would save the most. A generator also says how many facts it produces.
 implementation_costs(Is) :-
-    findall(S-obj([kind-generator, id-P, file-F, line-L, symbols-S, facts-N, text-T]),
+    findall(S-obj([kind-generator, id-P, file-F, line-L, symbols-S, band-B, facts-N, text-T]),
             ( catch(generator_code(P, F, L, T), _, fail), catch(code_symbols(F, L, S), _, fail),
               once(catch(generated_predicate(P, A), _, fail)), functor(H, P, A),
-              findall(x, catch(H, _, fail), Xs), length(Xs, N) ), Gs),
-    findall(S-obj([kind-implementation, id-Id, file-F, line-L, symbols-S, text-T]),
-            ( catch(generated_origin(implemented_in(Id, F), F, L, T), _, fail), catch(code_symbols(F, L, S), _, fail) ), Ims),
+              findall(x, catch(H, _, fail), Xs), length(Xs, N), band_of(S, B) ), Gs),
+    findall(S-obj([kind-implementation, id-Id, file-F, line-L, symbols-S, band-B, text-T]),
+            ( catch(generated_origin(implemented_in(Id, F), F, L, T), _, fail), catch(code_symbols(F, L, S), _, fail), band_of(S, B) ), Ims),
     append(Gs, Ims, All),
     sort(All, Unique), reverse(Unique, Sorted),   % a snippet counted twice is listed once
     findall(J, member(_-J, Sorted), Is).
 
-totals(Rels, [stated-obj([facts-SN, symbols-SS]), generated-obj([facts-GN, symbols-GS]),
+% Description length counts the code too: generated and imported facts cost the code that reads
+% them, and the capabilities the code that implements them (implementation_costs/1).
+totals(Rels, Is, [stated-obj([facts-SN, symbols-SS]), generated-obj([facts-GN, symbols-GS]), imported-obj([facts-IN, symbols-IS]),
               derived-obj([facts-DN, symbols-DS]), rules-obj([clauses-RN, symbols-RS]),
-              lexicon-obj([entries-LN, symbols-LS]), now-Now, without_rules-Without]) :-
+              lexicon-obj([entries-LN, symbols-LS]),
+              implementations-obj([snippets-IsN, symbols-CS, generators-GCS, capabilities-ICS|Banded]),
+              now-Now, without_rules-Without]) :-
     kind_totals(Rels, stated, SN, SS),
     kind_totals(Rels, generated, GN, GS),
+    kind_totals(Rels, imported, IN, IS),
     kind_totals(Rels, derived, DN, DS),
     findall(N-S, ( member(rel(P, A, _, derived, _), Rels), raw_clauses(P, A, Cs), length(Cs, N),
                    findall(CS, ( member(C, Cs), clause_symbols(C, CS) ), CSs), sum_list(CSs, S) ), RCs),
     findall(N, member(N-_, RCs), RNs), sum_list(RNs, RN),
     findall(S, member(_-S, RCs), RSs), sum_list(RSs, RS),
     lexicon_entries(Ls), length(Ls, LN), facts_symbols(Ls, LS),
-    Now is SS + RS + LS,
-    Without is SS + DS + LS.
+    length(Is, IsN),
+    findall(S, ( member(obj(L), Is), memberchk(symbols-S, L) ), CSs0), sum_list(CSs0, CS),
+    findall(S, ( member(obj(L), Is), memberchk(kind-generator, L), memberchk(symbols-S, L) ), GCSs), sum_list(GCSs, GCS),
+    ICS is CS - GCS,
+    findall(B-N, ( cost_band(B, _), findall(x, ( member(obj(L), Is), memberchk(band-B, L) ), Xs), length(Xs, N) ), Banded),
+    Now is SS + RS + LS + CS,
+    Without is SS + DS + LS + CS.
 
 kind_totals(Rels, K, N, S) :-
     findall(Fs, member(rel(_, _, _, K, Fs), Rels), Fss), append(Fss, All),

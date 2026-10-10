@@ -10,18 +10,23 @@
 % never words them itself.
 knowledge_kind(stated).
 knowledge_kind(generated).
+knowledge_kind(imported).
 knowledge_kind(derived).
 
 purpose(stated, 'to record what cannot be worked out from other knowledge, such as decisions, names and observations, written in the knowledge base by a person').
-purpose(generated, 'to take what the repository already records, such as package versions, imports, file headers and the code that implements each endpoint and tool, instead of writing it by hand').
+purpose(generated, 'to take what this repository already records, such as package versions, imports, file headers and the code that implements each endpoint and tool, read again whenever the knowledge loads, instead of writing it by hand').
+purpose(imported, 'to bring in what another system records, such as GitHub, Slack, an API or a dashboard, read at a known time and kept with where, when and how it was read, so it can go stale and be read again by a script or by agent steps').
 purpose(derived, 'to work out what follows from other facts by a rule; open it to see how (the rule) and why (the facts it used)').
 
 knowledge_kind(local).
 purpose(local, 'to try a change without editing the shared knowledge files: facts added, edited or removed here, in the explorer or by an agent over MCP, kept on this machine (state/, which git ignores) until someone writes them into a pack').
 
-% relation_kind(P, Kind): derived when a rule defines P, generated when the repository
-% records it (generated_predicate/2 comes with the generated facts), stated otherwise.
+% relation_kind(P, Kind): derived when a rule defines P, imported when another system records
+% it (imported_predicate/2), generated when the repository records it (generated_predicate/2,
+% both written with the facts by lib/kb-source.ts), stated otherwise.
+:- dynamic(imported_predicate/2).
 relation_kind(P, derived) :- derived_predicate(P, _, _), !.
+relation_kind(P, imported) :- kb_predicate(P, A, _), catch(imported_predicate(P, A), _, fail), !.
 relation_kind(P, generated) :- kb_predicate(P, A, _), catch(generated_predicate(P, A), _, fail), !.
 relation_kind(_, stated).
 

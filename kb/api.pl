@@ -166,8 +166,9 @@ fact_source(G, obj([file-F, line-L, text-T])) :-
     catch(clause_source(P, A, _, F, L, T), _, fail),
     catch(read_term_from_atom(T, G1, []), _, fail),
     G1 == G, !.
-fact_source(G, obj([file-F, generated-bool(true), text-T|More])) :-
-    functor(G, P, A), catch(generated_predicate(P, A), _, fail),
+fact_source(G, obj([file-F, generated-bool(true), kind-Kind, text-T|More])) :-
+    functor(G, P, A),
+    ( catch(imported_predicate(P, A), _, fail) -> Kind = imported ; catch(generated_predicate(P, A), _, fail), Kind = generated ),
     source_file(kb_source, F), !,
     format(atom(T0), "~q.", [G]), T = T0,
     findall(K-J, generation(G, P, K, J), More).

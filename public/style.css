@@ -169,6 +169,7 @@ pre.raw { white-space: pre-wrap; word-break: break-all; background: var(--surfac
 .kind-badge.stated { border: 1px solid var(--border); color: var(--muted); }
 .kind-badge.derived { border: 1px dashed var(--accent); color: var(--accent); }
 .kind-badge.generated { border: 1px dotted var(--muted); color: var(--muted); }
+.kind-badge.imported { border: 1px solid #20c997; color: #20c997; }
 /* Info "i" and its popover (click or tap to open; ×, outside click or Escape to close) */
 .info-btn { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border-radius: 50%;
   border: 1px solid var(--border); background: var(--surface-2); color: var(--muted); font: italic 600 11px/1 Georgia, serif;
@@ -218,7 +219,7 @@ td button.why { font-size: 11px; padding: 1px 6px; }
 .tile .muted { font-size: 12px; }
 .audit-view .segmented { display: inline-flex; gap: 4px; }
 .audit-filter { width: 100%; max-width: 320px; margin-bottom: 8px; }
-.fact-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.fact-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .fact-group > summary { font-weight: 600; color: var(--text); }
 .fact-list { list-style: none; padding: 0 0 0 10px; margin: 4px 0 8px; font-size: 12.5px; }
 .fact-list li { padding: 1px 0; cursor: pointer; overflow-wrap: anywhere; }
@@ -326,3 +327,13 @@ tr.local td:last-child { border-right: 2px solid var(--gold); }
 .agent-steps { margin: 6px 0; }
 .agent-steps ol { margin: 6px 0 0; padding-left: 20px; font-size: 12.5px; }
 .used { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 6px; }
+
+/* Implementation cost bands: red, yellow, green by size in symbols (kb/audit.pl cost_band/2) */
+.band { display: inline-block; min-width: 2.2em; padding: 1px 6px; border-radius: 999px; font-weight: 700; font-size: 12px; text-align: center; color: #fff; margin-right: 4px; }
+.band.red { background: #e03131; }
+.band.yellow { background: #f5b800; color: #3a2c00; }
+.band.green { background: #2f9e44; }
+.bands { margin-top: 6px; }
+.card.implementation.band-red { border-left: 4px solid #e03131; }
+.card.implementation.band-yellow { border-left: 4px solid #f5b800; }
+.card.implementation.band-green { border-left: 4px solid #2f9e44; }

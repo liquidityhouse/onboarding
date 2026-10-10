@@ -22,6 +22,8 @@ export interface Source {
   file: string; line?: number; text: string; generated?: boolean;
   /** Local overrides: the fact is in the state file, not in a pack. */
   local?: boolean;
+  /** Generated facts: generated from this repository, or imported from another system. */
+  kind?: KnowledgeKind;
   /** Generated facts: where the fact was read from, and the code that generated it. */
   origin?: Snippet; generator?: Snippet;
   /** Facts from a pack data file: the page each was read from, how the file was made (which agent
@@ -44,7 +46,7 @@ export interface Via {
 }
 export interface Entity { id: string; type: string; label: string }
 /** How a fact came to be known; names and meanings come from the knowledge base (Graph.kinds). */
-export type KnowledgeKind = "stated" | "generated" | "derived" | "local";
+export type KnowledgeKind = "stated" | "generated" | "imported" | "derived" | "local";
 
 /** What a change to local overrides did (lib/overrides.ts), with the changes after it. */
 export interface Outcome extends Problem {
@@ -166,8 +168,12 @@ export interface Candidate {
 export interface Audit extends Problem {
   totals: {
     stated: { facts: number; symbols: number }; generated: { facts: number; symbols: number };
+    imported: { facts: number; symbols: number };
     derived: { facts: number; symbols: number }; rules: { clauses: number; symbols: number };
-    lexicon: { entries: number; symbols: number }; now: number; without_rules: number;
+    lexicon: { entries: number; symbols: number };
+    /** The code behind generated facts (generators) and behind the capabilities, with how many snippets fall in each band. */
+    implementations: { snippets: number; symbols: number; generators: number; capabilities: number } & Record<string, number>;
+    now: number; without_rules: number;
   };
   relations: AuditRelation[];
   kinds: { id: string; label: string; description: string }[];
@@ -175,7 +181,9 @@ export interface Audit extends Problem {
   reads: { relation: string; reads: string }[];
   /** The code behind generated facts (generators, with the facts each produces) and behind the
    *  capabilities, endpoints and tools (implementations), by size in symbols, largest first. */
-  implementations: { kind: "generator" | "implementation"; id: string; file: string; line: number; symbols: number; facts?: number; text: string }[];
+  implementations: { kind: "generator" | "implementation"; id: string; file: string; line: number; symbols: number; band: string; facts?: number; text: string }[];
+  /** Size bands, largest first: a snippet is in the first band whose `from` it reaches (red, yellow, green). */
+  bands: { id: string; from: number }[];
 }
 /** POST /api/plan: constraints for choosing candidates. */
 export interface PlanRequest { keep?: string[]; kindsOff?: string[]; maxRules?: number; exceptions?: boolean; alternatives?: number }
