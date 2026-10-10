@@ -15,6 +15,17 @@
 % saving = symbols of those facts − symbols it adds. kb/plan.lp chooses among them.
 
 % --- Symbols ---
+% Rules the audit's tiles show as written (clause/2 reads only dynamic predicates).
+:- dynamic(implementation_costs/1).
+:- dynamic(generator_cost/2).
+:- dynamic(written_cost/4).
+:- dynamic(size_threshold/3).
+:- dynamic(totals/3).
+:- dynamic(kind_totals/4).
+:- dynamic(lexicon_entries/1).
+:- dynamic(facts_symbols/2).
+:- dynamic(clause_symbols/2).
+
 symbols(T, 1) :- var(T), !.
 symbols(T, 1) :- number(T), !.
 symbols(T, 1) :- compound(T), T = '$VAR'(N), integer(N), !.   % a numbered variable
@@ -408,9 +419,9 @@ all_candidates(Role, Rels, Cands) :-
 % Candidates that pay come first; near misses (saving above -6) show what almost does.
 api_term(audit(Role), obj([problem-'unknown role'])) :- \+ role(Role), !.
 api_term(audit(Role), obj([totals-obj(Totals), relations-arr(RJs), kinds-arr(Kinds),
-                           candidates-arr(CJs), reads-arr(Reads), implementations-arr(Is), bands-arr(Bs)])) :-
+                           candidates-arr(CJs), reads-arr(Reads), implementations-arr(Is), measures-arr(Ms)])) :-
     implementation_costs(Is),
-    findall(obj([id-B, from-F]), cost_band(B, F), Bs),
+    findall(M, measure_json(M), Ms),
     audit_rels(Role, Rels),
     findall(J, ( member(R, Rels), relation_json(Rels, R, J) ), RJs),
     totals(Rels, Is, Totals),
@@ -424,26 +435,101 @@ api_term(audit(Role), obj([totals-obj(Totals), relations-arr(RJs), kinds-arr(Kin
             ( derived_predicate(P, _, D), role_domain(Role, D), rel_uses(P, Q) ), Reads0),
     sort(Reads0, Reads).
 
-% How big a snippet is, as a traffic light: red from 300 symbols, yellow from 150, green below.
-% The bands are the rule to adjust; the largest bands come first.
-cost_band(red, 300).
-cost_band(yellow, 150).
-cost_band(green, 0).
-band_of(S, B) :- cost_band(B, From), S >= From, !.
+% --- Why a snippet is red, yellow or green ---
+% Code that generates or imports facts is a model of those facts, so minimum description length
+% judges it against them (two-part MDL, as in library learning: an abstraction pays while it is
+% shorter than what it replaces). Its band is its size as a share of theirs: green up to the first
+% share, yellow up to the second, red beyond, where stating the facts by hand would be shorter.
+generator_band(green, 0.5).
+generator_band(yellow, 1.0).
 
-% The code behind generated facts and behind the capabilities, endpoints and tools, by its size
-% in symbols (code_symbols/3, counted by lib/kb-source.ts), largest first: where streamlining an
-% implementation would save the most. A generator also says how many facts it produces.
+% Code a person writes for a capability has no facts to weigh against, so it is banded against
+% this code base's own spread (the quantile thresholds of Alves, Ypma and Visser 2010, taken over
+% its snippets): green while no larger than the first percentage of snippets, yellow up to the
+% second, red when larger than that.
+size_band(green, 70).
+size_band(yellow, 90).
+
+band(red).
+band(yellow).
+band(green).
+
+% The code behind generated and imported facts (one entry per generating statement, with every
+% fact it produces) and behind the capabilities, endpoints and tools (code_symbols/3 counted by
+% lib/kb-source.ts), largest first, each with its band and why.
 implementation_costs(Is) :-
-    findall(S-obj([kind-generator, id-P, file-F, line-L, symbols-S, band-B, facts-N, text-T]),
-            ( catch(generator_code(P, F, L, T), _, fail), catch(code_symbols(F, L, S), _, fail),
-              once(catch(generated_predicate(P, A), _, fail)), functor(H, P, A),
-              findall(x, catch(H, _, fail), Xs), length(Xs, N), band_of(S, B) ), Gs),
-    findall(S-obj([kind-implementation, id-Id, file-F, line-L, symbols-S, band-B, text-T]),
-            ( catch(generated_origin(implemented_in(Id, F), F, L, T), _, fail), catch(code_symbols(F, L, S), _, fail), band_of(S, B) ), Ims),
-    append(Gs, Ims, All),
-    sort(All, Unique), reverse(Unique, Sorted),   % a snippet counted twice is listed once
+    findall(F-L-T, catch(generator_code(_, F, L, T), _, fail), GS0), sort(GS0, GSs),
+    findall(C-J, ( member(F-L-T, GSs), generator_cost(F-L-T, C-J) ), Gs),
+    findall(F-L-T, catch(generated_origin(implemented_in(_, F), F, L, T), _, fail), WS0), sort(WS0, WSs),
+    findall(C, ( member(F-L-_, WSs), once(catch(code_symbols(F, L, C), _, fail)) ), Sizes),
+    size_band(green, VG), size_band(yellow, VY),
+    size_threshold(Sizes, VG, TG), size_threshold(Sizes, VY, TY),
+    findall(C-J, ( member(F-L-T, WSs), written_cost(F-L-T, TG-VG, TY-VY, C-J) ), Ws),
+    append(Gs, Ws, All),
+    sort(0, @>=, All, Sorted),
     findall(J, member(_-J, Sorted), Is).
+
+% A generating statement: its code against the symbols of every fact it produces.
+generator_cost(F-L-T, C-obj([kind-generator, id-Id, file-F, line-L, symbols-C, facts-N, fact_symbols-FS, band-B, reason-Why, text-T])) :-
+    once(catch(code_symbols(F, L, C), _, fail)),
+    findall(P, catch(generator_code(P, F, L, _), _, fail), Ps0), sort(Ps0, Ps),
+    atomic_list_concat(Ps, ', ', Id),
+    findall(G, ( member(P, Ps), ( catch(generated_predicate(P, A), _, fail) ; catch(imported_predicate(P, A), _, fail) ),
+                 functor(G, P, A), catch(G, _, fail) ), Facts),
+    length(Facts, N), facts_symbols(Facts, FS),
+    (   FS =:= 0
+    ->  B = red, format(atom(Why0), "it produces no facts, so stating nothing would be shorter", [])
+    ;   Share is C / FS,
+        ( generator_band(B0, Max), Share =< Max -> B = B0 ; B = red ),
+        ( FS >= C -> Times is FS / C, Way = smaller ; Times is C / FS, Way = larger ),
+        format(atom(Why0), "its ~w facts would take ~w symbols to state; this code takes ~w, ~2f of their size (~1fx ~w)", [N, FS, C, Share, Times, Way])
+    ),
+    Why = Why0.
+
+% A hand-written snippet against the sizes no larger than the first and second percentages of snippets.
+written_cost(F-L-T, TG-VG, TY-VY, C-obj([kind-implementation, id-Id, file-F, line-L, symbols-C, band-B, reason-Why, text-T])) :-
+    once(catch(code_symbols(F, L, C), _, fail)),
+    findall(I, catch(generated_origin(implemented_in(I, F), F, L, _), _, fail), Ids0), sort(Ids0, Ids),
+    atomic_list_concat(Ids, ', ', Id),
+    (   C =< TG -> B = green, format(atom(Why0), "~w symbols: no larger than ~w% of the hand-written snippets (up to ~w symbols)", [C, VG, TG])
+    ;   C =< TY -> B = yellow, format(atom(Why0), "~w symbols: larger than ~w% of the hand-written snippets (~w) but no larger than ~w% (~w)", [C, VG, TG, VY, TY])
+    ;   B = red, format(atom(Why0), "~w symbols: larger than ~w% of the hand-written snippets (above ~w symbols)", [C, VY, TY])
+    ),
+    Why = Why0.
+
+% size_threshold(Sizes, Percent, Size): the size no smaller than Percent of the sizes (nearest rank).
+size_threshold([], _, 0) :- !.
+size_threshold(Sizes, Percent, T) :-
+    sort(0, @=<, Sizes, Ascending), length(Ascending, N),
+    K is max(1, ceiling(Percent * N / 100)), nth1(K, Ascending, T0), T = T0.
+
+% --- What each tile of the audit counts, and the rules that count it ---
+measure_rules(stated, [kind_totals/4, symbols/2]).
+measure_rules(rules, [totals/3, clause_symbols/2]).
+measure_rules(lexicon, [lexicon_entries/1, facts_symbols/2]).
+measure_rules(derived, [kind_totals/4]).
+measure_rules(generated, [kind_totals/4, generator_cost/2]).
+measure_rules(imported, [kind_totals/4, generator_cost/2]).
+measure_rules(implementations, [implementation_costs/1, generator_cost/2, written_cost/4, size_threshold/3]).
+measure_rules(description_length, [totals/3]).
+
+measure_text(stated, 'Every stated fact in scope, in symbols: a name, number or variable is one symbol; a link or sentence one per word-like segment. This is what a person wrote, and what the audit tries to shrink.').
+measure_text(rules, 'The rule clauses that work facts out, in symbols. What they save is the derived facts, which would otherwise be stated.').
+measure_text(lexicon, 'The words and primitives every label and explanation is built from, in symbols.').
+measure_text(derived, 'What the derived facts would cost if each were stated by hand instead of worked out by a rule.').
+measure_text(generated, 'Facts read from this repository on every load, in symbols. They are not free: they cost the code that reads them, counted under implementations.').
+measure_text(imported, 'Facts read from another system at a known time, in symbols. They cost the code that reads them, counted under implementations, and go stale until read again.').
+measure_text(description_length, 'Stated facts, rules, lexicon and implementations together: what has to be written for this knowledge. Beside it, the same with every derived fact stated instead of its rule, which shows what the rules save.').
+measure_text(implementations, T) :-
+    generator_band(green, G), generator_band(yellow, Y), size_band(green, VG), size_band(yellow, VY),
+    format(atom(T0), "The code behind generated and imported facts and behind the capabilities, in symbols, not counting comments. Code that produces facts is green while it is at most ~w of the size of its facts, yellow up to ~w of it, and red beyond, where stating the facts would be shorter (minimum description length). Hand-written code is banded against this code base: green while no larger than ~w% of its snippets, yellow up to ~w%, red when larger (quantile thresholds, Alves, Ypma and Visser 2010).", [G, Y, VG, VY]),
+    T = T0.
+
+% Each measure with its text and its rules as written (clause_source/6), for the tile's "i".
+measure_json(obj([id-M, text-T, rules-arr(Rs)])) :-
+    measure_rules(M, PAs), once(measure_text(M, T)),
+    findall(obj([predicate-PA, file-F, line-L, text-Src]),
+            ( member(P/A, PAs), format(atom(PA), "~w/~w", [P, A]), catch(clause_source(P, A, _, F, L, Src), _, fail) ), Rs).
 
 % Description length counts the code too: generated and imported facts cost the code that reads
 % them, and the capabilities the code that implements them (implementation_costs/1).
@@ -465,7 +551,7 @@ totals(Rels, Is, [stated-obj([facts-SN, symbols-SS]), generated-obj([facts-GN, s
     findall(S, ( member(obj(L), Is), memberchk(symbols-S, L) ), CSs0), sum_list(CSs0, CS),
     findall(S, ( member(obj(L), Is), memberchk(kind-generator, L), memberchk(symbols-S, L) ), GCSs), sum_list(GCSs, GCS),
     ICS is CS - GCS,
-    findall(B-N, ( cost_band(B, _), findall(x, ( member(obj(L), Is), memberchk(band-B, L) ), Xs), length(Xs, N) ), Banded),
+    findall(B-N, ( band(B), findall(x, ( member(obj(L), Is), memberchk(band-B, L) ), Xs), length(Xs, N) ), Banded),
     Now is SS + RS + LS + CS,
     Without is SS + DS + LS + CS.
 

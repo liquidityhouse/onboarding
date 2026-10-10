@@ -109,10 +109,15 @@ try {
   check("audit ranks the code behind generated facts and capabilities by size", costs.length > 0
     && costs.every((c: { symbols: number }, i: number) => i === 0 || costs[i - 1].symbols >= c.symbols)
     && costs.some((c: { kind: string; facts?: number }) => c.kind === "generator" && (c.facts ?? 0) > 0), JSON.stringify(costs.slice(0, 2)).slice(0, 200));
-  const bands = new Map((au.body.bands ?? []).map((b: { id: string; from: number }) => [b.id, b.from]));
-  check("each snippet is in the first band its size reaches, and the code counts in the description length",
-    costs.every((c: { symbols: number; band: string }) => c.symbols >= (bands.get(c.band) as number))
-    && au.body.totals.implementations.symbols > 0 && au.body.totals.now >= au.body.totals.stated.symbols + au.body.totals.implementations.symbols, JSON.stringify(au.body.totals.implementations));
+  // Bands by rule, each with why: minimum description length for generators, quantiles for hand-written code.
+  check("each snippet has a band and a reason, and the code counts in the description length",
+    costs.every((c: { band: string; reason: string }) => ["red", "yellow", "green"].includes(c.band) && c.reason.length > 0)
+    && costs.some((c: { kind: string; reason: string }) => c.kind === "generator" && /facts would take/.test(c.reason))
+    && costs.some((c: { kind: string; reason: string }) => c.kind === "implementation" && /% of the hand-written snippets/.test(c.reason))
+    && au.body.totals.now >= au.body.totals.stated.symbols + au.body.totals.implementations.symbols, JSON.stringify(costs[0]).slice(0, 200));
+  const measure = (id: string) => (au.body.measures ?? []).find((m: { id: string }) => m.id === id);
+  check("every tile explains its measure, with its rules as written", ["stated", "rules", "lexicon", "derived", "generated", "imported", "implementations", "description_length"].every((id) => measure(id)?.text)
+    && measure("implementations").rules.some((r: { text: string }) => r.text.includes("generator_cost")), JSON.stringify(measure("implementations")?.rules?.map((r: { predicate: string }) => r.predicate)));
   check("audit lists candidates with a saving and clauses", Array.isArray(au.body.candidates) && au.body.candidates.every((c: { saving: number; covers: unknown[] }) => typeof c.saving === "number" && c.covers.length > 0));
   const pl = await adam("/api/plan", { method: "POST", body: JSON.stringify({ alternatives: 2 }) });
   check("optimiser returns a best plan", pl.status === 200 && pl.body.plans.length >= 1 && pl.body.plans[0].saving >= 0, JSON.stringify(pl.body));

@@ -181,9 +181,14 @@ export interface Audit extends Problem {
   reads: { relation: string; reads: string }[];
   /** The code behind generated facts (generators, with the facts each produces) and behind the
    *  capabilities, endpoints and tools (implementations), by size in symbols, largest first. */
-  implementations: { kind: "generator" | "implementation"; id: string; file: string; line: number; symbols: number; band: string; facts?: number; text: string }[];
-  /** Size bands, largest first: a snippet is in the first band whose `from` it reaches (red, yellow, green). */
-  bands: { id: string; from: number }[];
+  implementations: {
+    kind: "generator" | "implementation"; id: string; file: string; line: number; symbols: number;
+    /** red, yellow or green, and why, by the audit's rules (minimum description length for generators, quantiles for the rest). */
+    band: string; reason: string;
+    facts?: number; fact_symbols?: number; text: string;
+  }[];
+  /** What each tile counts, and the rules that count it as written. */
+  measures: { id: string; text: string; rules: { predicate: string; file: string; line: number; text: string }[] }[];
 }
 /** POST /api/plan: constraints for choosing candidates. */
 export interface PlanRequest { keep?: string[]; kindsOff?: string[]; maxRules?: number; exceptions?: boolean; alternatives?: number }
