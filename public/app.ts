@@ -226,6 +226,7 @@ const whereWritten = (src: Source) =>
 /**
  * A stated fact as written in its file, folded, for technical roles. A generated fact also
  * shows where it was taken from and the code that generated it, each in its own language.
+ * @implements data_provenance
  */
 function sourceDetail(src: Source, summary?: string): HTMLElement {
   const snippet = (s: Snippet) => [
@@ -265,7 +266,10 @@ function agentSteps(task: { label: string; id: string }): HTMLElement {
   return box;
 }
 
-/** Text to the clipboard: the Clipboard API, else a selected textarea and the copy command. */
+/**
+ * Text to the clipboard: the Clipboard API, else a selected textarea and the copy command.
+ * @implements data_provenance
+ */
 async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
@@ -466,7 +470,10 @@ const changeInfo = (c: Change) =>
 /** A fact as written, without the comment lines above it. */
 const clauseOf = (text: string) => text.split("\n").filter((l) => !/^\s*%/.test(l)).join("\n");
 
-/** Send a change, say what happened, and reload the knowledge it changed. */
+/**
+ * Send a change, say what happened, and reload the knowledge it changed.
+ * @implements local_overrides
+ */
 async function changeKnowledge(path: string, body: unknown) {
   try {
     const o = await api<Outcome>(path, { method: "POST", body: JSON.stringify(body) });
@@ -495,6 +502,7 @@ function notice(text: string, problem = false) {
 /**
  * What a technical role can do with a fact: undo a local one; edit or remove a stated one
  * (as written in its pack). Generated and derived facts change where they come from.
+ * @implements local_overrides
  */
 function factActions(kind: KnowledgeKind, change: Change | null, source?: Source): HTMLElement | string {
   if (!can("technical")) return "";
@@ -531,7 +539,10 @@ function factLine(text: string, kind: KnowledgeKind, change: Change | null, sour
     source ? sourceDetail(source, text) : text, change ? changeInfo(change) : "", factActions(kind, change, source));
 }
 
-/** The sidebar's local overrides, for technical roles: every change, and ways to add facts. */
+/**
+ * The sidebar's local overrides, for technical roles: every change, and ways to add facts.
+ * @implements local_overrides
+ */
 async function renderOverrides() {
   const section = $("overrides-section");
   section.hidden = !can("technical");
@@ -563,6 +574,7 @@ async function renderOverrides() {
 /**
  * A service's setup steps for the person picked at the top, in their role, as ticks. Each
  * tick is a local completed/2 fact, shared with agents over MCP (record_progress).
+ * @implements setup_checklist
  */
 async function checklist(service: string): Promise<HTMLElement | null> {
   let v: Verification;

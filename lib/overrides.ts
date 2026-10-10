@@ -131,6 +131,7 @@ type ProgressOp = { op: "add"; fact: string; text: string } | { op: "undo"; id: 
  * Mark a service's setup steps done or not done for a person (all of them when `items` is
  * empty), as local completed/2 facts. Marking every step not done resets the service, for
  * an end-to-end run of its setup.
+ * @implements setup_checklist
  */
 export async function recordProgress(who: string, service: string, items: string[], isDone: boolean, role: string, actor: Actor): Promise<Outcome> {
   const { engine } = await current();
@@ -155,6 +156,10 @@ export async function recordProgress(who: string, service: string, items: string
 /** One change per request, as the explorer and the change_facts tool send it. */
 export interface ChangeRequest { add?: string; url?: string; remove?: string; edit?: { fact: string; with: string }; undo?: string[] }
 
+/**
+ * Make one change: add facts, read them from a URL, remove, edit or undo.
+ * @implements local_overrides
+ */
 export function changeFacts(r: ChangeRequest, actor: Actor): Promise<Outcome> {
   if (r.add) return addFacts(r.add, actor, "pasted");
   if (r.url) return consultUrl(r.url, actor);

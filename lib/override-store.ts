@@ -67,6 +67,7 @@ const atom = (s: string) => `'${s.replace(/\\/g, "\\\\").replace(/'/g, "\\'").re
  * The program's files with removed facts commented out, and the section of added facts and
  * local_change/7 records. A removal whose clause is no longer where it was written, nor
  * anywhere else in its file, is stale (local_stale/1) and changes nothing.
+ * @implements local_overrides
  */
 export function applyChanges(changes: Change[], texts: Map<string, string>): { texts: Map<string, string>; section: string } {
   const out = new Map(texts);
