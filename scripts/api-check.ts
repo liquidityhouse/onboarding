@@ -133,7 +133,7 @@ try {
   const askFor = (item: string) => mine.body.requirements?.find((r: { item: string }) => r.item === item)?.ask ?? [];
   check("each step names who can help with it", ["rasmus", "adam"].every((p) => askFor("docker_compose").includes(p)) && askFor("onboarding").includes("rasmus"),
     JSON.stringify(mine.body.requirements?.map((r: { item: string; ask: string[] }) => [r.item, r.ask])));
-  check("verify names the person and their role", mine.body.who_name === "Adam, Software Engineer" && mine.body.who_role === "Developer" && mine.body.ready === false);
+  check("verify names the person and their role", mine.body.who_name === "Adam Rybinski, Software Engineer" && mine.body.who_role === "Developer" && mine.body.ready === false);
   const all = (await adam("/api/overrides")).body.changes.map((c: { id: string }) => c.id);
   const undone = await post(adam, "/api/overrides", { undo: all });
   check("every local change can be undone", undone.status === 200 && undone.body.changes?.length === 0, JSON.stringify(undone.body));

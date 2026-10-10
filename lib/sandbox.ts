@@ -13,9 +13,11 @@ export function runQuery(program: string, goal: string, { timeoutMs = 3000, limi
       worker.terminate();
       reject(new Error(`stopped after ${timeoutMs / 1000} s`));
     }, timeoutMs);
-    worker.once("message", (lines: string[]) => {
+    // Only the answer counts: under node --watch, Node itself also messages from the worker.
+    worker.on("message", (lines: unknown) => {
+      if (!Array.isArray(lines)) return;
       clearTimeout(timer);
-      resolve(lines);
+      resolve(lines as string[]);
       worker.terminate();
     });
     worker.once("error", (e) => {

@@ -51,13 +51,38 @@ noun(personal_email, 'your personal email').
 noun(work_email, 'your work email').
 noun(team_email, 'your team email').
 noun(admin, administrator).
-noun(dominic, 'Dominic, Head of Risk').
-noun(adam, 'Adam, Software Engineer').
+noun(software_engineer, 'Software Engineer').
+noun(team_lead, 'Team Lead').
+noun(head_of_risk, 'Head of Risk').
+noun(ceo, 'CEO').
+noun(compliance, 'Compliance').
+noun(management, managerial).
+noun(business, 'business stakeholder').
+noun(job_area, 'kind of work').
+noun(works_as, job).
+noun(full_name, 'full name').
+noun(slack_member_id, 'Slack member ID').
+noun(injectx_api, 'InjectX public API').
+noun(api, 'API').
+noun(public_api, 'public API').
+noun(needs_access, access).
+noun(access_granted_by, person).
+noun(grants, access).
+% A person is called by their full name and job: "Adam Rybinski, Software Engineer".
+noun(Person, Name) :-
+    full_name(Person, Full),
+    ( works_as(Person, Job) -> noun_of(Job, JobName), format(atom(Name0), "~w, ~w", [Full, JobName]) ; Name0 = Full ),
+    Name = Name0.
 noun(liquidity_house, 'Liquidity House').
 
 % Relations read as "Subject Verb Object".
 verb(onboarding, includes).
 verb(helps_with, 'helps with').
+verb(grants, 'gives access to').
+verb(public_api, offers).
+verb(api_gateway_needs, 'has an API gateway that needs').
+verb(needs_access, needs).
+verb(access_granted_by, 'needs access given by').
 verb(can_help_with, 'can help with').
 verb(completed, 'has completed').
 verb(part_of, 'is part of').

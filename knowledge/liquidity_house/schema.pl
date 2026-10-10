@@ -21,6 +21,10 @@ kb_predicate(email_provider, 2, onboarding).
 kb_predicate(managed_by, 2, onboarding).
 kb_predicate(invites, 2, onboarding).
 kb_predicate(helps_with, 2, onboarding).
+kb_predicate(grants, 2, onboarding).
+kb_predicate(full_name, 2, onboarding).
+kb_predicate(slack_member_id, 2, onboarding).
+kb_predicate(job_area, 2, onboarding).
 kb_predicate(works_as, 2, onboarding).
 kb_predicate(reachable_in, 2, onboarding).
 kb_predicate(github_account, 2, onboarding).
@@ -47,6 +51,8 @@ kb_predicate(riskx, 2, platform).
 kb_predicate(data_source, 2, platform).
 kb_predicate(monitors, 2, platform).
 kb_predicate(api_docs_path, 2, platform).
+kb_predicate(public_api, 2, platform).
+kb_predicate(api_gateway_needs, 2, platform).
 kb_predicate(built_with, 2, platform).
 kb_predicate(calls, 2, platform).
 kb_predicate(operator, 2, risk).
@@ -62,6 +68,8 @@ derived_predicate(daily_allowance, 2, risk).
 derived_predicate(exposure_warning, 2, risk).
 derived_predicate(in_portfolio, 2, platform).
 derived_predicate(api_reference, 2, platform).
+derived_predicate(needs_access, 2, platform).
+derived_predicate(access_granted_by, 2, platform).
 derived_predicate(url, 2, onboarding).
 derived_predicate(sibling_repo, 2, onboarding).
 derived_predicate(belongs_to, 2, onboarding).
@@ -70,8 +78,8 @@ derived_predicate(requires, 2, onboarding).
 derived_predicate(can_help_with, 2, onboarding).
 
 % --- Entity types (first matching rule wins) ---
-type_rule(E, text) :- catch(api_docs_path(_, E), _, fail), !.
-type_rule(E, identifier) :- catch((slack_client_id(_, E) ; slack_channel_id(_, E)), _, fail), !.
+type_rule(E, text) :- catch((api_docs_path(_, E) ; full_name(_, E)), _, fail), !.
+type_rule(E, identifier) :- catch((slack_client_id(_, E) ; slack_channel_id(_, E) ; slack_member_id(_, E)), _, fail), !.
 type_rule(E, account) :- catch((github_account(_, E) ; jira_site(_, E)), _, fail), !.
 type_rule(E, domain) :- catch((email_domain(_, E) ; cluster_domain(_, E) ; product_domain(_, E) ; managed_by(_, E)), _, fail), !.
 type_rule(E, email) :- catch((email_domain(E, _) ; invitation_sent_to(_, E) ; signs_in_with(_, E)), _, fail), !.
@@ -81,7 +89,10 @@ type_rule(E, organisation) :- catch((part_of(_, E) ; mailbox(E, _)), _, fail), !
 type_rule(E, product) :- catch(builds(_, E), _, fail), !.
 type_rule(E, workspace) :- catch(slack_client_id(E, _), _, fail), !.
 type_rule(E, channel) :- catch(slack_channel(_, E), _, fail), !.
-type_rule(E, person) :- catch((invites(E, _) ; works_as(E, _) ; member_of(E, _) ; helps_with(E, _)), _, fail), !.
+type_rule(E, person) :- catch((invites(E, _) ; works_as(E, _) ; member_of(E, _) ; helps_with(E, _) ; grants(E, _)), _, fail), !.
+type_rule(E, job) :- catch(works_as(_, E), _, fail), !.
+type_rule(E, work_area) :- catch(job_area(_, E), _, fail), !.
+type_rule(E, api) :- catch(public_api(_, E), _, fail), !.
 type_rule(E, jira_project) :- catch(jira_site(E, _), _, fail), !.
 type_rule(E, dashboard) :- catch(dashboard(_, E), _, fail), !.
 type_rule(E, cluster) :- catch(cluster_domain(E, _), _, fail), !.
@@ -124,6 +135,9 @@ type_style(jira_project, '#1c7ed6', diamond).
 type_style(dashboard, '#f76707', hexagon).
 type_style(cluster, '#5c940d', box).
 type_style(technology, '#63e6be', diamond).
+type_style(job, '#a9e34b', ellipse).
+type_style(work_area, '#d8f5a2', ellipse).
+type_style(api, '#22b8cf', diamond).
 
 % --- Who sees what (developer and admin come with the explorer pack) ---
 role(risk_officer).
