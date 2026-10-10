@@ -15,6 +15,9 @@ noun(product_domain, domain).
 noun(email_role, role).
 noun(email_provider, provider).
 noun(google_workspace, 'Google Workspace').
+noun(ai_invoices, 'AI invoices').
+noun(helps_with, topic).
+noun(can_help_with, topic).
 noun(api_docs_path, 'API docs path').
 noun(nextjs, 'Next.js').
 noun(react, 'React').
@@ -54,6 +57,8 @@ noun(liquidity_house, 'Liquidity House').
 
 % Relations read as "Subject Verb Object".
 verb(onboarding, includes).
+verb(helps_with, 'helps with').
+verb(can_help_with, 'can help with').
 verb(completed, 'has completed').
 verb(part_of, 'is part of').
 verb(builds, builds).

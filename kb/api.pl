@@ -451,7 +451,7 @@ api_term(verify(Who, Service, Done, _), J) :-
             ( member(I, Is), entity_type(I, T), action_of(T, A), change_of(completed(Who, I), Ch),
               ( done(Who, I, Done) -> B = true ; B = false ),
               ( url(I, U) -> Link = U ; Link = null ),
-              findall(P, catch(invites(P, I), _, fail), Ps),
+              findall(P, catch(can_help_with(P, I), _, fail), Ps0), dedupe(Ps0, Ps),
               because(Service, I, Why) ),
             Items),
     findall(A-I, ( member(I, Is), \+ done(Who, I, Done), entity_type(I, T), action_of(T, A) ), Missing),

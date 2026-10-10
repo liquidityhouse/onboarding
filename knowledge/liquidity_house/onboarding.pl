@@ -26,6 +26,17 @@ onboarding(riskx_dashboard).
 invites(richard, 'liquidity-house').
 invites(georgi, riskx_dashboard).
 
+% --- Who to ask: what each person knows and helps others with ---
+% can_help_with/2 below extends this to what those things need.
+helps_with(richard, ai_invoices).
+helps_with(rasmus, injectx).
+helps_with(rasmus, onboarding).
+helps_with(rasmus, 'GOAT').        % Jira
+helps_with(georgi, riskx).
+helps_with(adam, knowledge_explorer).
+helps_with(adam, injectx).
+helps_with(adam, riskx).
+
 works_as(georgi, developer).
 reachable_in(georgi, direct_messages).
 
@@ -128,6 +139,7 @@ riskx(agregate, metadata).
 :- dynamic(email_address/2).
 :- dynamic(requires/2).
 :- dynamic(api_reference/2).
+:- dynamic(can_help_with/2).
 
 % Members of a team also belong to the organisation the team is part of.
 belongs_to(Person, Org) :-
@@ -147,6 +159,16 @@ requires(Service, Setup) :-
     needs_setup(Service, Setup).
 requires(Service, Source) :-
     data_source(Service, Source).
+
+% Who can help with something: whoever helps with it, invites you to it, or helps with a
+% service that requires it (so Rasmus, who helps with injectx, can help with its setup).
+can_help_with(Person, Item) :-
+    helps_with(Person, Item).
+can_help_with(Person, Item) :-
+    invites(Person, Item).
+can_help_with(Person, Item) :-
+    requires(Service, Item),
+    helps_with(Person, Service).
 
 % Every organisation you belong to gives you {person}@{its email domain}.
 email_address(Person, Address) :-

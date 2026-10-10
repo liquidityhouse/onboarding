@@ -130,7 +130,6 @@ The knowledge base exists to hold the engine that reasons and explains (kb/) and
 | `knowledge/liquidity_house` | Liquidity House's onboarding, platform and risk knowledge: what a new joiner sets up and who gets them in, how the services fit together, and how operators' limits and warnings follow from their figures |
 | `knowledge/liquidity_house/onboarding.pl` | What a new joiner sets up, who gets them in, and where things live |
 | `knowledge/liquidity_house/riskx.pl` | RiskX ground facts and risk rules |
-| `knowledge/liquidity_house/progress.pl` | What each person or agent has already set up |
 | `knowledge/liquidity_house/schema.pl` | The Liquidity House pack's domains, relations, entity types, roles and accounts |
 | `knowledge/liquidity_house/vocabulary.pl` | The Liquidity House pack's words: what its concepts, relations, people and units are called |
 | `knowledge/knowledge_explorer` | The knowledge explorer described as knowledge: its components, endpoints, MCP tools, identity modes and practices, from which README.md is composed |

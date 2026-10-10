@@ -20,6 +20,7 @@ kb_predicate(inbox, 2, onboarding).
 kb_predicate(email_provider, 2, onboarding).
 kb_predicate(managed_by, 2, onboarding).
 kb_predicate(invites, 2, onboarding).
+kb_predicate(helps_with, 2, onboarding).
 kb_predicate(works_as, 2, onboarding).
 kb_predicate(reachable_in, 2, onboarding).
 kb_predicate(github_account, 2, onboarding).
@@ -32,6 +33,10 @@ kb_predicate(email_domain, 2, onboarding).
 kb_predicate(signs_in_with, 2, onboarding).
 kb_predicate(jira_site, 2, onboarding).
 kb_predicate(jira_board, 2, onboarding).
+% completed(Who, Item): Who has done the item's action (cloned it, set it up, got access).
+% Personal progress, so it is kept as local overrides (the setup checklist, record_progress),
+% never in a pack; dynamic, so verify works while nobody has completed anything.
+:- dynamic(completed/2).
 kb_predicate(completed, 2, onboarding).
 kb_predicate(depends_on, 2, platform).
 kb_predicate(needs_setup, 2, platform).
@@ -62,6 +67,7 @@ derived_predicate(sibling_repo, 2, onboarding).
 derived_predicate(belongs_to, 2, onboarding).
 derived_predicate(email_address, 2, onboarding).
 derived_predicate(requires, 2, onboarding).
+derived_predicate(can_help_with, 2, onboarding).
 
 % --- Entity types (first matching rule wins) ---
 type_rule(E, text) :- catch(api_docs_path(_, E), _, fail), !.
@@ -75,7 +81,7 @@ type_rule(E, organisation) :- catch((part_of(_, E) ; mailbox(E, _)), _, fail), !
 type_rule(E, product) :- catch(builds(_, E), _, fail), !.
 type_rule(E, workspace) :- catch(slack_client_id(E, _), _, fail), !.
 type_rule(E, channel) :- catch(slack_channel(_, E), _, fail), !.
-type_rule(E, person) :- catch((invites(E, _) ; works_as(E, _) ; member_of(E, _)), _, fail), !.
+type_rule(E, person) :- catch((invites(E, _) ; works_as(E, _) ; member_of(E, _) ; helps_with(E, _)), _, fail), !.
 type_rule(E, jira_project) :- catch(jira_site(E, _), _, fail), !.
 type_rule(E, dashboard) :- catch(dashboard(_, E), _, fail), !.
 type_rule(E, cluster) :- catch(cluster_domain(E, _), _, fail), !.

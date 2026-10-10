@@ -111,7 +111,7 @@ export async function knowledgeServer(session?: Session): Promise<McpServer> {
       "verify_task_onboarding",
       {
         title: "Verify onboarding for a task",
-        description: describe("verify_task_onboarding", "Progress comes from completed/2 facts (the pack's progress.pl and local overrides, which record_progress changes) and from `completed`."),
+        description: describe("verify_task_onboarding", "Progress comes from completed/2, kept as local overrides that record_progress changes, and from `completed`."),
         inputSchema: {
           service: z.string().min(1).describe("Service id, e.g. 'injectx' or 'riskx'."),
           userId: z

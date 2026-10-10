@@ -6,7 +6,6 @@
   "files": [
     "onboarding.pl",
     "riskx.pl",
-    "progress.pl",
     "schema.pl",
     "vocabulary.pl"
   ]
