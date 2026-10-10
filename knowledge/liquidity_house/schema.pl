@@ -27,6 +27,7 @@ kb_predicate(slack_member_id, 2, onboarding).
 kb_predicate(job_area, 2, onboarding).
 kb_predicate(github_login, 2, onboarding).
 kb_predicate(commits_by, 3, onboarding).
+kb_predicate(last_commit_week, 2, onboarding).
 kb_predicate(works_as, 2, onboarding).
 kb_predicate(reachable_in, 2, onboarding).
 kb_predicate(github_account, 2, onboarding).

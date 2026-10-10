@@ -187,6 +187,7 @@ practice(regenerate_readme).
 practice(check_audit).
 practice(try_locally).
 practice(record_outside_data).
+practice(one_definition).
 
 purpose(write_once, 'to state a fact only when nothing else records it, and add a rule for anything that follows from other facts').
 purpose(generate_recorded, 'to generate what the repository already records (knowledge files and packs, packages, npm scripts, file descriptions, imports, and the code that implements each endpoint and tool) instead of restating it, each generated fact pointing to the line it was read from').
@@ -197,6 +198,7 @@ purpose(fresh_format, 'to format text into a fresh variable and then unify (Url 
 purpose(dynamic_rules, 'to declare rules the explorer explains as dynamic, because clause/2 cannot read static predicates in Trealla').
 purpose(isolate_reflection, 'to ask predicate_property/2 only under negation (\\+ \\+ to keep the answer), never catch errors from clause/2, and walk terms with separate clauses and functor/3 and arg/3 rather than if-then-else or =.., because in Trealla these leave or lose bindings when backtracking').
 purpose(check_audit, 'to look at the audit before adding facts: a candidate that saves symbols means knowledge is repeated, and a rule that saves none is kept for what it explains').
+purpose(one_definition, 'to define each predicate in one file, and spread one across files only on purpose, declared discontiguous like api_term/2; the loader warns otherwise, because two definitions add up and every call answers once per definition').
 purpose(record_outside_data, 'to keep facts read from outside the repository (GitHub, Slack) in a pack data file that says where each was read from, when, and by which agent or npm script, so every such fact and every conclusion resting on it can show it').
 purpose(try_locally, 'to try a change as a local override first (in the explorer or with change_facts), and write it into its pack once it holds up; state/ is never committed').
 purpose(regenerate_readme, 'to change the knowledge (knowledge packs, file headers, package.json) and run npm run readme, rather than editing README.md').

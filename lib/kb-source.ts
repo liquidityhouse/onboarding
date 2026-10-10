@@ -35,7 +35,7 @@ const sha = (text: string, n: number) => createHash("sha1").update(text).digest(
  */
 interface DataFile {
   file: string; text: string; summary?: string; relation: string; facts: (string | number)[][];
-  made_by?: string; script?: string; read_from?: string;
+  made_by?: string; script?: string; read_from?: string; as_of?: string;
 }
 interface Pack { dir: string; files: string[]; summary?: string; needs: string[]; data: DataFile[]; text: string }
 interface Layout { engine: string[]; packs: Pack[]; manifestText: string; sources: string[] }
@@ -138,6 +138,7 @@ async function generatedFacts({ engine, packs, manifestText, sources }: Layout, 
       fact("kb_file", [p.dir, d.file], jsonLine(`${p.dir}/pack.json`, p.text, "data", d.file.slice(p.dir.length + 1)));
       if (d.summary) fact("file_summary", [d.file, d.summary], keyLine(d.file, d.text, "summary"));
       if (d.made_by) fact("made_by", [d.file, d.made_by], keyLine(d.file, d.text, "made_by"));
+      if (d.as_of) fact("data_as_of", [d.file, d.as_of], keyLine(d.file, d.text, "as_of"));
       if (d.script) fact("made_with", [d.file, d.script], keyLine(d.file, d.text, "script"));
       for (const row of d.facts) {
         const term = fact(d.relation, row, lineWith(d.file, d.text, JSON.stringify(row)));

@@ -9,6 +9,9 @@
 %   api(explain(E, Role))                            — facts and explained conclusions about E
 % Agent requests (overview, context, verify, explain_goal) are at the end of the file.
 
+% Each file adds the requests it answers (audit.pl, the explorer pack's readme.pl).
+:- discontiguous(api_term/2).
+
 :- discontiguous(api_term/2).
 
 % --- Universal meta-bridge ---

@@ -68,7 +68,10 @@ noun(api, 'API').
 noun(github_user, 'GitHub user').
 noun(github_login, 'GitHub user').
 noun(candidate_owner, 'candidate owner').
-noun(most_commits_in_slack, 'most commits by anyone in Slack').
+noun(most_commits_by_active, 'most commits by an active developer').
+noun(days_since_commit, 'days since the last commit').
+noun(activity_window, 'activity window in days').
+noun(last_commit_week, 'week of the last commit').
 noun(public_api, 'public API').
 noun(needs_access, access).
 noun(access_granted_by, person).

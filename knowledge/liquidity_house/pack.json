@@ -4,6 +4,7 @@
     "knowledge/knowledge_explorer"
   ],
   "data": [
+    "github-activity.json",
     "github-commits.json"
   ],
   "files": [

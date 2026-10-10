@@ -73,11 +73,24 @@ everyone_has(public).
 everyone_has(signed_in).
 role_feature(Role, Feature) :- everyone_has(Feature), role(Role).
 
-% --- Agent tasks: steps a pack gives an agent, with {placeholders} filled from its facts ---
-% agent_task(Task, FileItUpdates), agent_step(Task, N, Text), agent_value(Task, Key, Value).
+% --- Agent tasks: steps a pack gives an agent, composed by its rules ---
+% agent_task(Task, FileItUpdates); task_step(Task, N, Item): the items of step N, from the
+% pack's rules; step_text(Item, Text): how the pack words each kind of item.
 :- dynamic(agent_task/2).
-:- dynamic(agent_step/3).
-:- dynamic(agent_value/3).
+:- dynamic(task_step/3).
+:- dynamic(step_text/2).
+
+% date_days('2026-10-10', Days): days since 1970-01-01 in the civil calendar (dates as in data files).
+date_days(Date, Days) :-
+    sub_atom(Date, 0, 4, _, YA), sub_atom(Date, 5, 2, _, MA), sub_atom(Date, 8, 2, _, DA),
+    atom_number(YA, Y0), atom_number(MA, M), atom_number(DA, D),
+    ( M =< 2 -> Y is Y0 - 1 ; Y = Y0 ),
+    Era is Y // 400, YoE is Y - Era * 400,
+    ( M > 2 -> MP is M - 3 ; MP is M + 9 ),
+    DoY is (153 * MP + 2) // 5 + D - 1,
+    DoE is YoE * 365 + YoE // 4 - YoE // 100 + DoY,
+    Days0 is Era * 146097 + DoE - 719468,
+    Days = Days0.
 
 % --- The explorer's name: the explorer's noun, after the organisation it explores ---
 :- dynamic(explores/2).
