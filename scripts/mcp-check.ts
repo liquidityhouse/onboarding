@@ -89,8 +89,11 @@ const sequence: Call[] = [
   ["explain_rule_or_decision", { expression: "candidate_owner(riskx, Who)" }, false,
     (t) => /graphs\/contributors/.test(t) && /made_by/.test(t) && /github-commits\.ts/.test(t)],
   // Agent steps for refreshing that data by hand, filled in from the knowledge base.
+  // Steps built by rules: a count per active developer, a skip (with why) per inactive one.
   ["agent_instructions", { task: "commit_counts" }, false,
-    (t) => JSON.parse(t).steps.length === 5 && t.includes("gustavgenberg") && t.includes("github-commits.json")],
+    (t) => t.includes("Count gustav's commits") && /Skip madusha .*inactive/.test(t) && t.includes("github-commits.json")],
+  ["explain_rule_or_decision", { expression: "developer_activity(madusha, S)" }, false,
+    (t) => t.includes("inactive") && /github-activity\.json/.test(t)],
   ["agent_instructions", { task: "nothing" }, true, (t) => JSON.parse(t).tasks.includes("commit_counts")],
   ["agent_instructions", { task: "commit_counts", scope: "risk_officer" }, true, (t) => /not available to role/.test(t)],
 ];

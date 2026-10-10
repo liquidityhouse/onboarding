@@ -14,50 +14,53 @@ graph LR
   n1["api_check (script)"]
   n2["clingo-wasm (library)"]
   n3["explorer_ui (user interface)"]
-  n4["kb_service (module)"]
-  n5["kb_source (module)"]
-  n6["knowledge_base (knowledge base)"]
-  n7["mcp_check (script)"]
-  n8["mcp_tools (module)"]
-  n9["optimiser (module)"]
-  n10["override_store (module)"]
-  n11["overrides (module)"]
-  n12["prolog_engine (module)"]
-  n13["query_sandbox (module)"]
-  n14["readme_builder (script)"]
-  n15["trealla (library)"]
-  n16["vis-network (library)"]
-  n17["web_server (server)"]
-  n18["zod (library)"]
-  n1 --> n17
-  n3 --> n16
+  n4["github_commits (script)"]
+  n5["kb_service (module)"]
+  n6["kb_source (module)"]
+  n7["knowledge_base (knowledge base)"]
+  n8["mcp_check (script)"]
+  n9["mcp_tools (module)"]
+  n10["optimiser (module)"]
+  n11["override_store (module)"]
+  n12["overrides (module)"]
+  n13["prolog_engine (module)"]
+  n14["query_sandbox (module)"]
+  n15["readme_builder (script)"]
+  n16["trealla (library)"]
+  n17["vis-network (library)"]
+  n18["web_server (server)"]
+  n19["zod (library)"]
+  n1 --> n18
   n3 --> n17
+  n3 --> n18
   n4 --> n5
-  n4 --> n12
+  n4 --> n14
   n5 --> n6
-  n5 --> n10
-  n7 --> n0
-  n7 --> n17
+  n5 --> n13
+  n6 --> n7
+  n6 --> n11
   n8 --> n0
-  n8 --> n4
-  n8 --> n11
-  n8 --> n12
-  n8 --> n13
   n8 --> n18
-  n9 --> n2
-  n11 --> n4
-  n11 --> n5
-  n11 --> n10
-  n11 --> n12
-  n12 --> n15
-  n13 --> n15
-  n14 --> n4
-  n17 --> n0
-  n17 --> n4
-  n17 --> n8
-  n17 --> n9
-  n17 --> n11
-  n17 --> n12
+  n9 --> n0
+  n9 --> n5
+  n9 --> n12
+  n9 --> n13
+  n9 --> n14
+  n9 --> n19
+  n10 --> n2
+  n12 --> n5
+  n12 --> n6
+  n12 --> n11
+  n12 --> n13
+  n13 --> n16
+  n14 --> n16
+  n15 --> n5
+  n18 --> n0
+  n18 --> n5
+  n18 --> n9
+  n18 --> n10
+  n18 --> n12
+  n18 --> n13
 ```
 
 ## Components
@@ -80,6 +83,7 @@ graph LR
 | `mcp_check` | script | Node.js | `scripts/mcp-check.ts` | Smoke test for the MCP tools at the web server's POST /mcp, on servers started on spare ports: lists the tools, walks the discover → focus → verify → explain sequence an agent would follow, and checks that free-form queries are answered, refused outside their role and contained in the sandbox, that a signed-in person is held to their role, and that dev mode answers local clients only; then that progress and local changes to facts are recorded (in a scratch state file, never the real one), refused where they should be, and undone |
 | `code_export` | script | Node.js | `scripts/export-code.ts` | Bundles all application source into export/_code.txt for sharing as a single file |
 | `readme_builder` | script | Node.js | `scripts/readme.ts` | Composes README.md from the knowledge base: every heading, sentence and table cell comes from the knowledge packs |
+| `github_commits` | script | Node.js | `scripts/github-commits.ts` | Refreshes the Liquidity House pack's GitHub data from the GitHub API by the same rule-built steps an agent is given (agent_tasks.pl): each developer's last commit (github-activity.json), then, as the rules decide who is active, each active developer's commits per repository (github-commits.json), a commit on any branch counted once |
 
 ## Running it
 
@@ -97,6 +101,7 @@ npm start
 | `npm run typecheck` | `tsc --noEmit` | Type-check the server, the explorer and the scripts |
 | `npm run export` | `node scripts/export-code.ts` | Bundles all application source into export/_code.txt for sharing as a single file |
 | `npm run mcp:check` | `node scripts/mcp-check.ts` | Smoke test for the MCP tools at the web server's POST /mcp, on servers started on spare ports: lists the tools, walks the discover → focus → verify → explain sequence an agent would follow, and checks that free-form queries are answered, refused outside their role and contained in the sandbox, that a signed-in person is held to their role, and that dev mode answers local clients only; then that progress and local changes to facts are recorded (in a scratch state file, never the real one), refused where they should be, and undone |
+| `npm run github-commits` | `node scripts/github-commits.ts` | Refreshes the Liquidity House pack's GitHub data from the GitHub API by the same rule-built steps an agent is given (agent_tasks.pl): each developer's last commit (github-activity.json), then, as the rules decide who is active, each active developer's commits per repository (github-commits.json), a commit on any branch counted once |
 | `npm run api:check` | `node scripts/api-check.ts` | End-to-end check of the REST endpoints and their role scoping |
 | `npm run readme` | `node scripts/readme.ts` | Composes README.md from the knowledge base: every heading, sentence and table cell comes from the knowledge packs |
 | `npm run readme:check` | `node scripts/readme.ts --check` | Fail when README.md differs from what the knowledge base would generate, for use in CI |
@@ -130,9 +135,11 @@ The knowledge base exists to hold the engine that reasons and explains (kb/) and
 | `knowledge/liquidity_house` | Liquidity House's onboarding, platform and risk knowledge: what a new joiner sets up and who gets them in, how the services fit together, and how operators' limits and warnings follow from their figures |
 | `knowledge/liquidity_house/onboarding.pl` | What a new joiner sets up, who gets them in, and where things live |
 | `knowledge/liquidity_house/riskx.pl` | RiskX ground facts and risk rules |
+| `knowledge/liquidity_house/agent_tasks.pl` | What an agent does, step by step, to read this pack's outside data again |
 | `knowledge/liquidity_house/schema.pl` | The Liquidity House pack's domains, relations, entity types, roles and accounts |
 | `knowledge/liquidity_house/vocabulary.pl` | The Liquidity House pack's words: what its concepts, relations, people and units are called |
-| `knowledge/liquidity_house/github-commits.json` | Commits per GitHub user in each liquidityhouse repository, read from GitHub's contributors graph on 10 October 2026 with bots left out (onboarding from its git history); commits_by/3 facts |
+| `knowledge/liquidity_house/github-activity.json` | The week of each developer's last commit in the liquidityhouse organisation, by GitHub user; last_commit_week/2 facts, which decide who is active |
+| `knowledge/liquidity_house/github-commits.json` | Commits by each developer (an engineer with a GitHub user, still in Slack) in each liquidityhouse repository, summed over their GitHub users; commits_by/3 facts |
 | `knowledge/knowledge_explorer` | The knowledge explorer described as knowledge: its components, endpoints, MCP tools, identity modes and practices, from which README.md is composed |
 | `knowledge/knowledge_explorer/explorer.pl` | The knowledge explorer and its server, described as knowledge |
 | `knowledge/knowledge_explorer/schema.pl` | The explorer pack's domain, relations and entity types: the knowledge explorer itself |
@@ -158,6 +165,7 @@ The knowledge base exists to hold the engine that reasons and explains (kb/) and
 | `GET /api/overrides` | `technical` | `overrides` | — |
 | `POST /api/overrides` | `technical` | `fact_check` | `change_facts` |
 | `POST /api/progress` | `signed_in` | `progress_plan` | `record_progress` |
+| `GET /api/agent-instructions/:task` | `technical` | `agent_instructions` | `agent_instructions` |
 | `POST /mcp` | `signed_in` | — | — |
 
 ## MCP tools for AI agents
@@ -173,6 +181,7 @@ Server 'web_server' offers the MCP tools over transport 'streamable_http'. Serve
 | `query_knowledge_base` | `query` | — | Run any Prolog goal against the whole knowledge base, in a throwaway sandbox with a time limit, and list every answer; for direct exploration by developers, past the role scoping the other tools apply |
 | `record_progress` | `progress_plan` | `POST /api/progress` | Mark the steps of setting up a service done or not done for a person, as local completed/2 facts, so their progress shows at once in the explorer and in verify_task_onboarding; marking every step not done resets the service for a run from scratch |
 | `change_facts` | `fact_check` | `POST /api/overrides` | Add, edit or remove facts on this machine only, from Prolog text or a URL, or undo such changes; they show in the explorer as local overrides, marked with who made them, until someone writes them into a pack |
+| `agent_instructions` | `agent_instructions` | `GET /api/agent-instructions/:task` | Hand an agent the steps a knowledge pack gives for a task, such as refreshing a data file in a signed-in browser when its script cannot run, with the repositories, people and file filled in from the facts |
 
 ## Using the explorer
 
@@ -186,6 +195,7 @@ Server 'web_server' offers the MCP tools over transport 'streamable_http'. Serve
 - **Knowledge audit**: Count what is stated, generated and derived in symbols, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints.
 - **Local overrides**: Change facts here without editing the packs: paste facts or load them from a URL, edit or remove a fact from its card, and undo any change; changed facts are outlined in gold with an i saying who changed them, when and how, and the kinds filter can hide them.
 - **Setup checklist**: Tick off the steps of setting up a service, as the person picked at the top and in their role; ticks are local overrides shared with agents over MCP.
+- **Data provenance**: Show, for a fact read from outside the repository and for every conclusion resting on one, where it was read from, how and when its file was made, the script that makes it again, and the agent steps to copy when the script cannot run.
 
 ## Working on the knowledge base
 
@@ -200,4 +210,6 @@ Server 'web_server' offers the MCP tools over transport 'streamable_http'. Serve
 - Change the knowledge (knowledge packs, file headers, package.json) and run npm run readme, rather than editing README.md.
 - Look at the audit before adding facts: a candidate that saves symbols means knowledge is repeated, and a rule that saves none is kept for what it explains.
 - Try a change as a local override first (in the explorer or with change_facts), and write it into its pack once it holds up; state/ is never committed.
+- Keep facts read from outside the repository (GitHub, Slack) in a pack data file that says where each was read from, when, and by which agent or npm script, so every such fact and every conclusion resting on it can show it.
+- Define each predicate in one file, and spread one across files only on purpose, declared discontiguous like api_term/2; the loader warns otherwise, because two definitions add up and every call answers once per definition.
 - Illustrative sample data: `nordbet`, `spinhaus` and `vegaplay`.

@@ -1,20 +1,24 @@
-// Counts each developer's commits in each liquidityhouse repository the knowledge base knows,
-// from the GitHub API, and writes the Liquidity House pack's github-commits.json (commits_by/3)
-// with where they were read from and how. Developers come from the knowledge base
-// (developer_login/2: engineers with a GitHub user, still in Slack); a commit on any branch
-// counts once. Without a token it prints the agent steps that do the same in a browser.
+// Refreshes the Liquidity House pack's GitHub data from the GitHub API by the same rule-built
+// steps an agent is given (agent_tasks.pl): each developer's last commit (github-activity.json),
+// then, as the rules decide who is active, each active developer's commits per repository
+// (github-commits.json), a commit on any branch counted once. Without a token it prints those steps.
 //
 // Run: npm run github-commits                  (GITHUB_TOKEN in .env: read-only Contents access to
 //      liquidityhouse; fine-grained tokens work once an organisation owner approves them)
 //      npm run github-commits -- --instructions (the agent steps, from the knowledge base)
 
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { current } from "../lib/kb-service.ts";
+import { current, invalidate } from "../lib/kb-service.ts";
 import { runQuery } from "../lib/sandbox.ts";
 
 const ROOT = join(import.meta.dirname, "..");
-const OUT = "knowledge/liquidity_house/github-commits.json";
+
+// A refused or failed request ends the run with its message rather than a stack trace.
+process.on("uncaughtException", (e) => {
+  console.error(e.message);
+  process.exit(1);
+});
 const API = "https://api.github.com";
 
 try {
@@ -25,9 +29,11 @@ const { kb, engine } = await current();
 
 // The agent steps (agent_tasks.pl): what to do by hand, in a signed-in browser, when there is no token.
 if (!token || process.argv.includes("--instructions")) {
-  const steps = await engine.api<{ purpose: string; file: string; steps: string[] }>("agent_instructions(commit_counts)");
   if (!token) console.error("GITHUB_TOKEN is not set (see .env.example). An agent can do the same in a signed-in browser:\n");
-  console.log(`${steps.purpose}.\n\n${steps.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`);
+  for (const task of ["commit_activity", "commit_counts"]) {
+    const a = await engine.api<{ purpose: string; steps: string[] }>(`agent_instructions(${task})`);
+    console.log(`${task}: ${a.purpose}.\n${a.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n`);
+  }
   process.exit(token ? 0 : 1);
 }
 
@@ -57,15 +63,45 @@ async function all<T>(path: string): Promise<T[]> {
   }
 }
 
-const [{ Org: org }] = await ask(kb.program, "github_account(liquidity_house, Org)");
-const repos = (await ask(kb.program, "repo(R, liquidity_house)")).map((a) => a.R);
-const logins = await ask(kb.program, "developer_login(P, L)");
+/** A task's step items (agent_tasks.pl), the same ones the agent steps are worded from. */
+const items = (program: string, task: string, item: string) => ask(program, `task_step(${task}, _, ${item})`);
 
+/** Rewrite a data file: its other fields kept, the given ones set, its facts replaced. */
+async function writeData(file: string, fields: Record<string, string>, rows: (string | number)[][]) {
+  const { facts: _old, ...kept } = JSON.parse(await readFile(join(ROOT, file), "utf8")) as Record<string, unknown>;
+  const head = Object.entries({ ...kept, ...fields }).map(([k, v]) => `  ${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(",\n");
+  await writeFile(join(ROOT, file), `{\n${head},\n  "facts": [\n${rows.map((r) => `    ${JSON.stringify(r)}`).join(",\n")}\n  ]\n}\n`);
+  console.log(`Wrote ${file} (${rows.length} facts)`);
+}
+
+const today = new Date().toISOString().slice(0, 10);
+const made = (what: string) => `npm run github-commits on ${today}, from the GitHub API: ${what}, following the steps in agent_tasks.pl`;
+
+// 1. commit_activity: every developer's last commit, which decides who is active.
+const [{ Org: org }] = await items(kb.program, "commit_counts", "sign_in(Org)");
+const repos = (await items(kb.program, "commit_counts", "read_repository(_, R)")).map((a) => a.R);
+const [{ F: activityFile }] = await ask(kb.program, "agent_task(commit_activity, F)");
+const activity: [string, string][] = [];
+for (const { L: login } of await items(kb.program, "commit_activity", "last_commit(_, L)")) {
+  const dates = await Promise.all(repos.map(async (repo) =>
+    (await github<{ commit: { author: { date: string } } }[]>(`/repos/${org}/${repo}/commits?author=${encodeURIComponent(login)}&per_page=1`))[0]?.commit.author.date ?? ""));
+  const last = dates.filter(Boolean).sort().at(-1);
+  if (last) activity.push([login, last.slice(0, 10)]);
+}
+activity.sort((a, b) => b[1].localeCompare(a[1]));
+await writeData(activityFile, { as_of: today, made_by: made("each developer's latest commit in any repository") }, activity);
+
+// 2. commit_counts: with that activity, the rules say whose commits count and whose are skipped.
+invalidate();
+const { kb: now } = await current();
+for (const s of await items(now.program, "commit_counts", "skip(P, _, D, _)")) console.log(`skipping ${s.P}: inactive, ${s.D} days since the last commit`);
+const counted = await items(now.program, "commit_counts", "count(P, L, _)");
+const [{ F: countsFile }] = await ask(now.program, "agent_task(commit_counts, F)");
 const rows: [string, string, number][] = [];
 for (const repo of repos) {
   const branches = (await all<{ name: string }>(`/repos/${org}/${repo}/branches`)).map((b) => b.name);
   const byPerson = new Map<string, Set<string>>();
-  await Promise.all(logins.map(async ({ P: person, L: login }) => {
+  await Promise.all(counted.map(async ({ P: person, L: login }) => {
     const shas = byPerson.get(person) ?? new Set<string>();
     byPerson.set(person, shas);
     for (const branch of branches) {
@@ -73,17 +109,7 @@ for (const repo of repos) {
     }
   }));
   for (const [person, shas] of byPerson) if (shas.size) rows.push([repo, person, shas.size]);
-  console.log(`${repo}: ${[...byPerson].filter(([, s]) => s.size).map(([p, s]) => `${p} ${s.size}`).join(", ") || "no developer commits"}`);
+  console.log(`${repo}: ${[...byPerson].filter(([, s]) => s.size).map(([p, s]) => `${p} ${s.size}`).join(", ") || "no commits by active developers"}`);
 }
 rows.sort((a, b) => repos.indexOf(a[0]) - repos.indexOf(b[0]) || b[2] - a[2]);
-
-const doc = {
-  summary: "Commits by each developer (an engineer with a GitHub user, still in Slack) in each liquidityhouse repository, summed over their GitHub users; commits_by/3 facts",
-  relation: "commits_by",
-  made_by: `npm run github-commits on ${new Date().toISOString().slice(0, 10)}, from the GitHub API: each developer's distinct commits on every branch, counting only the developers the knowledge base names`,
-  script: "scripts/github-commits.ts",
-  read_from: `https://github.com/${org}/{1}/graphs/contributors`,
-};
-const head = Object.entries(doc).map(([k, v]) => `  ${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(",\n");
-await writeFile(join(ROOT, OUT), `{\n${head},\n  "facts": [\n${rows.map((r) => `    ${JSON.stringify(r)}`).join(",\n")}\n  ]\n}\n`);
-console.log(`Wrote ${OUT} (${rows.length} facts)`);
+await writeData(countsFile, { made_by: made("each active developer's distinct commits on every branch") }, rows);
