@@ -243,23 +243,43 @@ function sourceDetail(src: Source, summary?: string): HTMLElement {
     ...(src.generator ? snippet(src.generator) : []));
 }
 
-/** The steps a pack gives an agent for the task that refreshes this fact's file, with a button to copy them. */
+/**
+ * The steps a pack gives an agent for the task that refreshes this fact's file, shown and copied
+ * as text a later agent can follow. They load with the button, so the click copies at once
+ * (a copy after waiting for the network no longer counts as the click's).
+ * @implements data_provenance
+ */
 function agentSteps(task: { label: string; id: string }): HTMLElement {
-  const copy = el("button", { type: "button", textContent: `Copy ${task.label}` });
+  const copy = el("button", { type: "button", textContent: `Copy ${task.label}`, disabled: true });
   const box = el("div", { className: "agent-steps" }, el("div", { className: "via-label" }, `${task.label} · `, el("span", { className: "path" }, task.id)), copy);
-  copy.onclick = async (e) => {
+  let text = "";
+  api<{ task: string; purpose: string; file: string; steps: string[] }>(`/api/agent-instructions/${encodeURIComponent(task.id)}`).then((a) => {
+    text = `${task.label}: ${a.task} (${a.file})\n${a.purpose}.\n\n${a.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n`;
+    box.append(el("ol", {}, ...a.steps.map((s) => el("li", {}, s))));
+    copy.disabled = false;
+  }, (err: Error) => box.append(el("p", { className: "muted" }, err.message)));
+  copy.onclick = (e) => {
     e.stopPropagation();
-    try {
-      const a = await api<{ purpose: string; file: string; steps: string[] }>(`/api/agent-instructions/${encodeURIComponent(task.id)}`);
-      const text = `${a.purpose}.\n\n${a.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
-      box.querySelector("ol")?.remove();
-      box.append(el("ol", {}, ...a.steps.map((s) => el("li", {}, s))));
-      await navigator.clipboard.writeText(text).then(() => notice(`Copied the ${task.label} for ${task.id}.`), () => notice("The steps are shown below; copying is not allowed here.", true));
-    } catch (err) {
-      notice((err as Error).message, true);
-    }
+    copyText(text).then((ok) => notice(ok ? `Copied the ${task.label.toLowerCase()} for ${task.id}: paste them to an agent.` : "Copying is not allowed here; the steps are shown below.", !ok));
   };
   return box;
+}
+
+/** Text to the clipboard: the Clipboard API, else a selected textarea and the copy command. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = el("textarea", { value: text });
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.append(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  }
 }
 
 /** A rule clause's Prolog, folded, for technical roles. */

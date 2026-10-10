@@ -153,7 +153,9 @@ export async function knowledgeServer(session?: Session): Promise<McpServer> {
         answer("explain_rule_or_decision", roleOf(scope), async (e) => {
           const ex = await e.explainGoal(expression, max_answers, roleOf(scope));
           for (const a of ex.answers ?? []) delete a.lines; // agents read `explanation`; lines are for the explorer
-          return ex;
+          // Facts read from outside the repository name the agent task that reads them again.
+          const tasks = [...new Set((ex.answers ?? []).flatMap((a) => a.used ?? []).flatMap((u) => (u.agent_task ? [u.agent_task.id] : [])))];
+          return tasks.length ? { ...ex, refresh: { tool: "agent_instructions", tasks } } : ex;
         }),
     );
 
