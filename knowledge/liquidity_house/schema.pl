@@ -75,6 +75,7 @@ derived_predicate(needs_access, 2, platform).
 derived_predicate(access_granted_by, 2, onboarding).
 derived_predicate(candidate_owner, 2, onboarding).
 derived_predicate(developer_login, 2, onboarding).
+derived_predicate(developer_activity, 2, onboarding).
 derived_predicate(url, 2, onboarding).
 derived_predicate(sibling_repo, 2, onboarding).
 derived_predicate(belongs_to, 2, onboarding).
@@ -113,7 +114,7 @@ type_rule(E, weight) :- catch(risk_weight(E, _), _, fail), !.
 type_rule(E, data_source) :- catch(data_source(_, E), _, fail), !.
 type_rule(E, portfolio) :- catch(monitors(_, E), _, fail), !.
 type_rule(E, dataset) :- catch((riskx(E, _) ; riskx(_, E)), _, fail), !.
-type_rule(E, status) :- catch((operator(_, E) ; exposure_warning(_, E)), _, fail), !.
+type_rule(E, status) :- catch((operator(_, E) ; exposure_warning(_, E) ; developer_activity(_, E)), _, fail), !.
 type_rule(E, step) :- catch(onboarding(E), _, fail), !.
 
 % type_style(Type, DefaultColour, Shape) — shapes are vis-network shapes.

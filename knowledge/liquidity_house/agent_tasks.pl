@@ -22,9 +22,9 @@ task_step(commit_counts, 2, first(commit_activity)).
 task_step(commit_counts, 3, read_repository(Org, Repo)) :-
     github_account(liquidity_house, Org), repo(Repo, liquidity_house).
 task_step(commit_counts, 4, count(Person, Login, Days)) :-
-    developer_login(Person, Login), active_developer(Person), days_since_commit(Person, Days).
+    developer_login(Person, Login), developer_activity(Person, active), days_since_commit(Person, Days).
 task_step(commit_counts, 4, skip(Person, Login, Days, Window)) :-
-    developer_login(Person, Login), \+ active_developer(Person),
+    developer_login(Person, Login), developer_activity(Person, inactive),
     days_since_commit(Person, Days), activity_window(commit_activity, Window).
 task_step(commit_counts, 5, write_file(File)) :- agent_task(commit_counts, File).
 task_step(commit_counts, 6, run_checks).
