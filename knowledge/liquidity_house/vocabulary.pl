@@ -69,9 +69,9 @@ noun(github_user, 'GitHub user').
 noun(github_login, 'GitHub user').
 noun(candidate_owner, 'candidate owner').
 noun(most_commits_by_active, 'most commits by an active developer').
-noun(days_since_commit, 'days since the last commit').
 noun(days_before_reading, 'days before the activity data was read').
 noun(developer_activity, activity).
+noun(login_activity, activity).
 noun(activity_window, 'activity window in days').
 noun(last_commit_week, 'week of the last commit').
 noun(public_api, 'public API').

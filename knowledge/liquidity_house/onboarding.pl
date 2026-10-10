@@ -196,6 +196,8 @@ riskx(agregate, metadata).
 :- dynamic(access_granted_by/2).
 :- dynamic(candidate_owner/2).
 :- dynamic(developer_login/2).
+:- dynamic(developer_activity/2).
+:- dynamic(login_activity/2).
 
 % Members of a team also belong to the organisation the team is part of.
 belongs_to(Person, Org) :-
@@ -244,16 +246,43 @@ developer_login(Person, Login) :-
     slack_member_id(Person, _),
     github_login(Person, Login).
 
-% A repository's candidate owner: of the people still in Slack, whoever made the most of its
-% commits (two, when they made as many). Someone who left Slack is never a candidate.
-candidate_owner(Repo, Person) :-
-    most_commits_in_slack(Repo, Count),
-    commits_by(Repo, Person, Count),
-    slack_member_id(Person, _).
+% A GitHub user is active when their last commit (github-activity.json, every member of the
+% organisation) is within the activity window before that data was read; the window is the rule
+% to adjust. Only the active team is stated as people: inactive users stay data, and are skipped.
+activity_window(commit_activity, 60).
 
-% The most commits any one person still in Slack made to a repository.
-most_commits_in_slack(Repo, Most) :-
-    setof(Count, Person^Id^( commits_by(Repo, Person, Count), slack_member_id(Person, Id) ), Counts),
+login_activity(Login, active) :-
+    last_commit_week(Login, Week),
+    days_before_reading(Week, Days),
+    activity_window(commit_activity, Window),
+    Days =< Window.
+login_activity(Login, inactive) :-
+    last_commit_week(Login, Week),
+    days_before_reading(Week, Days),
+    activity_window(commit_activity, Window),
+    Days > Window.
+
+% A developer is as active as their GitHub user.
+developer_activity(Person, Activity) :-
+    developer_login(Person, Login),
+    login_activity(Login, Activity).
+
+% Days from a date to when the activity data was read (its as_of).
+days_before_reading(Date, Days) :-
+    agent_task(commit_activity, File), data_as_of(File, AsOf),
+    date_days(AsOf, Now), date_days(Date, Then), Days0 is Now - Then, Days = Days0.
+
+
+% A repository's candidate owner: of the active developers, whoever made the most of its
+% commits (two, when they made as many). Inactive developers are never candidates.
+candidate_owner(Repo, Person) :-
+    most_commits_by_active(Repo, Count),
+    commits_by(Repo, Person, Count),
+    developer_activity(Person, active).
+
+% The most commits any one active developer made to a repository.
+most_commits_by_active(Repo, Most) :-
+    setof(Count, Person^( commits_by(Repo, Person, Count), developer_activity(Person, active) ), Counts),
     last(Counts, Most).
 
 % Reaching a service's public API takes what its cluster's API gateway needs.

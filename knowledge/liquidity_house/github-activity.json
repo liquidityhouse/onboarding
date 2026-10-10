@@ -1,15 +1,16 @@
 {
-  "summary": "The week of each developer's last commit in the liquidityhouse organisation, by GitHub user; last_commit_week/2 facts, which decide who is active",
+  "summary": "The date of each liquidityhouse organisation member's last commit, by GitHub user; last_commit_week/2 facts, from which the activity rule decides who is active",
   "relation": "last_commit_week",
   "as_of": "2026-10-10",
-  "made_by": "read on 10 October 2026 by Claude in BrowserOS neo, signed in to GitHub as Adam: the last week with commits in each repository's contributors graph (Arihtev and adamrybinski from their latest commits)",
+  "made_by": "read on 10 October 2026 by Claude in BrowserOS neo, signed in to GitHub as Adam: the organisation's members, and the last week with commits in each repository's contributors graph (Arihtev and adamrybinski from their latest commits)",
   "script": "scripts/github-commits.ts",
   "read_from": "https://github.com/search?q=org%3Aliquidityhouse+author%3A{1}&type=commits&s=committer-date&o=desc",
   "facts": [
-    ["gustavgenberg","2026-10-04"],
+    ["adamrybinski","2026-10-10"],
     ["Arihtev","2026-10-07"],
+    ["gustavgenberg","2026-10-04"],
     ["ProgracomRasmus","2026-09-27"],
     ["mprasanjith","2026-07-12"],
-    ["adamrybinski","2026-10-10"]
+    ["0xRLA","2025-08-03"]
   ]
 }
