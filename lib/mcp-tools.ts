@@ -216,7 +216,7 @@ export async function knowledgeServer(session?: Session): Promise<McpServer> {
           if (!(await mayUse(engine, roleOf(scope), "record_progress"))) return failure(`record_progress is not available to role '${roleOf(scope)}'.`);
           if (!userId) return failure("Say whose progress this is in userId, e.g. 'adam'.");
           if (session && userId !== session.user && !session.features.includes("technical")) return failure("You can only record your own progress.");
-          const o = await recordProgress(userId, service, items, done, { user: session?.user ?? userId, via: "mcp" });
+          const o = await recordProgress(userId, service, items, done, roleOf(scope), { user: session?.user ?? userId, via: "mcp" });
           if (o.problem) return outcome(o);
           const { engine: after } = await current();
           const v = await after.verify(userId, service, [], roleOf(scope));

@@ -2,13 +2,16 @@
 // lists the tools, walks the discover → focus → verify → explain sequence an agent would follow,
 // and checks that free-form queries are answered, refused outside their role and contained in
 // the sandbox, that a signed-in person is held to their role, and that dev mode answers local
-// clients only.
+// clients only; then that progress and local changes to facts are recorded (in a scratch state
+// file, never the real one), refused where they should be, and undone.
 //
 // Run: npm run mcp:check
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { spawn, type ChildProcess } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -19,8 +22,12 @@ function check(name: string, ok: boolean, detail = "") {
   console.log(`${ok ? "ok  " : "FAIL"} ${name}${detail && !ok ? ` — ${detail}` : ""}`);
 }
 
+// Local changes go to a scratch state file, so the check never touches state/overrides.json.
+const scratch = mkdtempSync(join(tmpdir(), "mcp-check-"));
+const KB_STATE = join(scratch, "overrides.json");
+
 async function start(port: number, env: Record<string, string>): Promise<ChildProcess> {
-  const child = spawn(process.execPath, [join(ROOT, "server.ts")], { env: { ...process.env, PORT: String(port), ...env }, stdio: ["ignore", "ignore", "inherit"] });
+  const child = spawn(process.execPath, [join(ROOT, "server.ts")], { env: { ...process.env, PORT: String(port), KB_STATE, ...env }, stdio: ["ignore", "ignore", "inherit"] });
   for (let i = 0; i < 50; i++) {
     try {
       if ((await fetch(`http://127.0.0.1:${port}/api/health`)).ok) return child;
@@ -76,8 +83,31 @@ const dev = await start(8796, {});
 const viaUrl = await connect(http(8796));
 const devTools = (await viaUrl.listTools()).tools.map((t) => t.name);
 console.log(`tools: ${devTools.join(", ")}`);
-check("http: five tools", devTools.length === 5);
+check("http: seven tools", devTools.length === 7);
 await calls("http", viaUrl, sequence);
+
+// Progress and local changes: recorded, refused where they should be, visible to queries, undone.
+const ids: string[] = [];
+const keep = (t: string) => { for (const c of JSON.parse(t).changes ?? []) ids.push(c.id); return true; };
+await calls("http", viaUrl, [
+  ["record_progress", { service: "injectx", items: ["onboarding"], done: true, userId: "adam" }, false,
+    (t) => !JSON.parse(t).missing.includes("onboarding") && JSON.parse(t).added.length === 1],
+  ["record_progress", { service: "injectx", items: ["onboarding"], done: true }, true, (t) => /whose progress/.test(t)],
+  ["record_progress", { service: "injectx", items: ["nothing"], done: true, userId: "adam" }, true, (t) => /not needed for injectx/.test(t)],
+  ["record_progress", { service: "injectx", done: true, userId: "dominic", scope: "risk_officer" }, true, (t) => /not in this role scope/.test(t)],
+  ["verify_task_onboarding", { service: "injectx", userId: "adam" }, false,
+    (t) => JSON.parse(t).requirements.find((r: { item: string }) => r.item === "onboarding").change.via === "mcp"],
+  ["change_facts", { add: "invites(rasmus, 'liquidity-house').\nrole_feature(dominic, technical).", userId: "adam" }, false,
+    (t) => JSON.parse(t).added.length === 1 && /who may see and do what/.test(JSON.parse(t).skipped[0].reason)],
+  ["change_facts", { remove: "invites(richard, 'liquidity-house')", userId: "adam" }, false, (t) => JSON.parse(t).removed.length === 1 && keep(t)],
+  ["change_facts", { remove: "soft_credit_limit(dope, 74750.0)" }, true, (t) => /worked out by a rule/.test(t)],
+  ["change_facts", { add: "invites(rasmus, 'liquidity-house')." , scope: "risk_officer" }, true, (t) => /not available to role/.test(t)],
+  ["query_knowledge_base", { goal: "local_change(Id, Op, Fact, By, Via, _, _)" }, false, (t) => JSON.parse(t).answers.length === 3],
+  ["query_knowledge_base", { goal: "invites(richard, X)" }, false, (t) => JSON.parse(t).answers[0] === "false."],
+]);
+const { content } = await viaUrl.callTool({ name: "change_facts", arguments: { undo: ids } });
+const undone = JSON.parse((content as { text: string }[])[0].text);
+check("http: change_facts undoes every change", undone.undone?.length === 3 && undone.changes.length === 0, JSON.stringify(undone));
 await viaUrl.close();
 check("http: GET is refused (stateless)", (await fetch("http://localhost:8796/mcp")).status === 405);
 const foreign = await fetch("http://localhost:8796/mcp", { method: "POST", headers: { Origin: "https://example.com", "Content-Type": "application/json" }, body: "{}" });
@@ -89,11 +119,16 @@ const proxy = await start(8795, { KB_AUTH: "proxy" });
 const adam = await connect(http(8795, { "X-Forwarded-Email": "adam@goat.gs" }));
 const adamTools = (await adam.listTools()).tools;
 check("proxy: tools take no scope", adamTools.every((t) => !("scope" in (t.inputSchema.properties ?? {}))));
+check("proxy: changes are the signed-in person's", !("userId" in (adamTools.find((t) => t.name === "change_facts")?.inputSchema.properties ?? {})));
 await calls("proxy", adam, [
   ["query_knowledge_base", { goal: "soft_credit_limit(dope, L)" }, false, (t) => t.includes("L = 74750")],
   // Progress is the signed-in person's own by default; a developer may check others' (technical).
   ["verify_task_onboarding", { service: "injectx" }, false, (t) => JSON.parse(t).who === "adam"],
   ["verify_task_onboarding", { service: "injectx", userId: "georgi" }, false, (t) => JSON.parse(t).who === "georgi"],
+  ["record_progress", { service: "injectx", items: ["k8s"], done: true }, false, (t) => !JSON.parse(t).missing.includes("k8s")],
+  ["verify_task_onboarding", { service: "injectx" }, false,
+    (t) => JSON.parse(t).who_role === "Developer" && JSON.parse(t).requirements.find((r: { item: string }) => r.item === "k8s").change.by === "adam"],
+  ["record_progress", { service: "injectx", done: false }, false, (t) => JSON.parse(t).undone.length === 1],
 ]);
 await adam.close();
 let unknown = "connected";
@@ -104,6 +139,7 @@ try {
 }
 check("proxy: unknown email is refused", /no account for this email/.test(unknown), unknown);
 proxy.kill();
+rmSync(scratch, { recursive: true, force: true });
 
 console.log(failed ? `\n${failed} failed` : "\nall passed");
 process.exit(failed ? 1 : 0);

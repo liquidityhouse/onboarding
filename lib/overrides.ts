@@ -132,10 +132,10 @@ type ProgressOp = { op: "add"; fact: string; text: string } | { op: "undo"; id: 
  * empty), as local completed/2 facts. Marking every step not done resets the service, for
  * an end-to-end run of its setup.
  */
-export async function recordProgress(who: string, service: string, items: string[], isDone: boolean, actor: Actor): Promise<Outcome> {
+export async function recordProgress(who: string, service: string, items: string[], isDone: boolean, role: string, actor: Actor): Promise<Outcome> {
   const { engine } = await current();
   const plan = await engine.api<{ ops?: ProgressOp[] } & Problem>(
-    `progress_plan(${literal(who)}, ${literal(service)}, [${items.map(literal).join(", ")}], ${isDone})`);
+    `progress_plan(${literal(who)}, ${literal(service)}, [${items.map(literal).join(", ")}], ${isDone}, ${literal(role)})`);
   if (plan.problem) return { problem: plan.problem };
   const ops = plan.ops ?? [];
   const at = now();

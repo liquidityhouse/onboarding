@@ -467,6 +467,7 @@ function factActions(kind: KnowledgeKind, change: Change | null, source?: Source
     editB.onclick = (e) => {
       e.stopPropagation();
       const area = el("textarea", { className: "fact-edit", value: fact, rows: Math.max(1, fact.split("\n").length) });
+      area.setAttribute("aria-label", "The fact to put in its place");
       const save = el("button", { type: "button", textContent: "Save here" });
       const cancel = el("button", { type: "button", textContent: "Cancel" });
       save.onclick = () => changeKnowledge("/api/overrides", { edit: { fact, with: area.value } });
@@ -505,9 +506,11 @@ async function renderOverrides() {
       el("span", { className: "change-op" }, c.op === "add" ? "+" : "−"), ` ${c.text} `, changeInfo(c), " ", undo);
   }));
   const facts = el("textarea", { rows: 3, placeholder: "completed(adam, onboarding)." });
+  facts.setAttribute("aria-label", "Facts to add here");
   const add = el("button", { type: "button", textContent: "Add facts" });
   add.onclick = () => facts.value.trim() && changeKnowledge("/api/overrides", { add: facts.value });
   const url = el("input", { type: "url", placeholder: "https://…/facts.pl" });
+  url.setAttribute("aria-label", "A Prolog file to read facts from");
   const load = el("button", { type: "button", textContent: "Load" });
   load.onclick = () => url.value.trim() && changeKnowledge("/api/overrides", { url: url.value.trim() });
   $("overrides").replaceChildren(list, facts, el("div", { className: "row" }, add), el("div", { className: "row" }, url, load));

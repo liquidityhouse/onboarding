@@ -261,7 +261,7 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL) {
       if (typeof b.done !== "boolean") throw new HttpError(400, "done must be true or false");
       const items = b.items ?? [];
       if (!Array.isArray(items) || items.some((x) => typeof x !== "string")) throw new HttpError(400, "items must list requirement ids");
-      return answer(res, await recordProgress(who, b.service, items as string[], b.done, { user: session.user, via: "explorer" }));
+      return answer(res, await recordProgress(who, b.service, items as string[], b.done, role, { user: session.user, via: "explorer" }));
     }
     case "kb":
     case "kb.pl": {

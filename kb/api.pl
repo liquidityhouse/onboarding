@@ -246,9 +246,12 @@ fact_problem(G, P) :- functor(G, N, A), \+ changeable(N, A), !,
 changeable(N, A) :- kb_predicate(N, A, _), !.
 changeable(N, A) :- catch(clause_source(N, A, _, F, _, T), _, fail), sub_atom(F, 0, _, _, 'knowledge/'), \+ sub_atom(T, _, _, _, ':-'), !.
 
-% progress_plan(Who, Service, Items, Done): the changes that mark Items (all of the service's
-% requirements when empty) done or not done for Who: add completed/2, or undo or remove it.
-api_term(progress_plan(Who, Service, Items0, Done), J) :-
+% progress_plan(Who, Service, Items, Done, Role): the changes that mark Items (all of the
+% service's requirements when empty) done or not done for Who: add completed/2, or undo or
+% remove it. Like verify, only for roles that see the requirements.
+api_term(progress_plan(_, _, _, _, Role), obj([problem-'requirements are not in this role scope'])) :-
+    \+ ( derived_predicate(requires, _, D), role_domain(Role, D) ), !.
+api_term(progress_plan(Who, Service, Items0, Done, _), J) :-
     findall(I, prerequisite(Service, I), Is0), dedupe(Is0, All),
     (   All == [] -> format(atom(P), "no requirements are recorded for ~w", [Service]), J = obj([problem-P])
     ;   ( Items0 == [] -> Items = All ; Items = Items0 ),

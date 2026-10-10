@@ -1,13 +1,17 @@
 // End-to-end check of the REST endpoints and their role scoping. Starts the real
 // server twice (dev and proxy identity) on spare ports and checks what each
-// person can and cannot see.
+// person can and cannot see and change; local changes go to a scratch state file.
 //
 // Run: npm run api:check
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const SERVER = join(import.meta.dirname, "..", "server.ts");
+const scratch = mkdtempSync(join(tmpdir(), "api-check-"));
+const KB_STATE = join(scratch, "overrides.json");
 let failed = 0;
 
 function check(name: string, ok: boolean, detail = "") {
@@ -16,7 +20,7 @@ function check(name: string, ok: boolean, detail = "") {
 }
 
 async function start(port: number, env: Record<string, string>): Promise<ChildProcess> {
-  const child = spawn(process.execPath, [SERVER], { env: { ...process.env, PORT: String(port), ...env }, stdio: ["ignore", "ignore", "inherit"] });
+  const child = spawn(process.execPath, [SERVER], { env: { ...process.env, PORT: String(port), KB_STATE, ...env }, stdio: ["ignore", "ignore", "inherit"] });
   for (let i = 0; i < 50; i++) {
     try {
       if ((await fetch(`http://127.0.0.1:${port}/api/health`)).ok) return child;
@@ -108,6 +112,29 @@ try {
   check("keeping every relation leaves nothing to apply", kept.status === 200 && kept.body.plans[0].candidates.length === 0, JSON.stringify(kept.body));
   check("unknown names in constraints are refused", (await adam("/api/plan", { method: "POST", body: JSON.stringify({ keep: ["x). evil"] }) })).status === 400);
 
+  // Local overrides: technical roles change facts here; anyone records their own progress.
+  const post = (who: typeof adam, path: string, body: unknown) => who(path, { method: "POST", body: JSON.stringify(body) });
+  check("risk officer cannot list local changes", (await dominic("/api/overrides")).status === 403);
+  check("risk officer cannot change facts", (await post(dominic, "/api/overrides", { add: "completed(dominic, riskx)." })).status === 403);
+  const added = await post(adam, "/api/overrides", { add: "completed(adam, onboarding).\nrole_feature(dominic, technical)." });
+  check("developer adds a fact; access rules are refused", added.status === 200 && added.body.added?.length === 1 && added.body.skipped?.length === 1, JSON.stringify(added.body));
+  const gl = await adam("/api/graph");
+  const local = gl.body.triples?.find((t: { kind: string }) => t.kind === "local");
+  check("a local fact is drawn as local, with who added it", local?.s === "adam" && local?.change?.by === "adam" && local?.change?.via === "explorer", JSON.stringify(local));
+  const edited = await post(adam, "/api/overrides", { edit: { fact: "invites(richard, 'liquidity-house')", with: "invites(georgi, 'liquidity-house')" } });
+  check("editing a stated fact removes it and adds the new one", edited.status === 200 && edited.body.removed?.length === 1 && edited.body.added?.length === 1, JSON.stringify(edited.body));
+  check("a derived fact cannot be removed", (await post(adam, "/api/overrides", { remove: "url(riskx, X)" })).status === 400);
+  check("a malformed change is refused", (await post(adam, "/api/overrides", { undo: "all" })).status === 400);
+  check("progress for someone else needs technical access", (await post(dominic, "/api/progress", { service: "injectx", done: true, who: "adam" })).status === 403);
+  check("progress outside the role scope is refused", (await post(dominic, "/api/progress", { service: "injectx", done: true })).status === 400);
+  const reset = await post(adam, "/api/progress", { service: "injectx", items: [], done: false });
+  check("resetting a service takes back its local progress", reset.status === 200 && reset.body.undone?.length === 1, JSON.stringify(reset.body));
+  const mine = await adam("/api/verify/injectx");
+  check("verify names the person and their role", mine.body.who_name === "Adam, Software Engineer" && mine.body.who_role === "Developer" && mine.body.ready === false);
+  const all = (await adam("/api/overrides")).body.changes.map((c: { id: string }) => c.id);
+  const undone = await post(adam, "/api/overrides", { undo: all });
+  check("every local change can be undone", undone.status === 200 && undone.body.changes?.length === 0, JSON.stringify(undone.body));
+
   check("context outside the role scope", (await dominic("/api/context/adam")).status === 404);
   const ctx = await adam("/api/context/injectx?depth=1&max=5");
   check("context is capped", ctx.status === 200 && ctx.body.triples.length === 5 && ctx.body.truncated === true);
@@ -122,6 +149,7 @@ try {
 } finally {
   dev.kill();
   proxy.kill();
+  rmSync(scratch, { recursive: true, force: true });
 }
 console.log(failed ? `\n${failed} failed` : "\nall passed");
 process.exit(failed ? 1 : 0);
