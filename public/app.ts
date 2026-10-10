@@ -252,8 +252,11 @@ function viaText(pred: string, via: Via | null | undefined): string {
   return `How: ${rule.text}\nHere: ${via.bindings.map((b) => `${b.name} = ${b.value}`).join(", ")}`;
 }
 
+/** A kind of knowledge as a badge; its meaning (from the knowledge base) shows on hover over the "i". */
 function kindBadge(kind: KnowledgeKind) {
-  return el("span", { className: `kind-badge ${kind}`, textContent: kindOf(kind).label.toLowerCase(), title: kindHint(kind) });
+  const info = el("span", { className: "info" }, "i");
+  info.setAttribute("aria-hidden", "true");
+  return el("span", { className: `kind-badge ${kind}`, title: kindHint(kind) }, kindOf(kind).label.toLowerCase(), info);
 }
 
 /** A Prolog literal for a goal sent to /api/explain-goal (parsed there, never run as code). */
@@ -786,14 +789,14 @@ function whyDetails(t: Triple): HTMLElement {
 /** How (rule) and why (proof) for one connection, from /api/explain-goal. */
 async function whyBody(t: Triple): Promise<HTMLElement> {
   const goal = goalOf(t);
-  if (!goal) return el("p", { className: "muted" }, t.derived ? "This connection cannot be explained here." : kindHint(t.kind));
+  if (!goal) return t.derived ? el("p", { className: "muted" }, "This connection cannot be explained here.") : el("div");
   try {
     const ex = await api<GoalExplanation>(`/api/explain-goal?expression=${encodeURIComponent(goal)}&max=1`);
     const a = ex.answers?.[0];
     if (!a) return el("p", { className: "muted" }, "This connection no longer holds.");
     const box = el("div", {}, el("div", { className: "headline", textContent: a.text }));
     if (!a.derived) {
-      box.append(el("p", { className: "muted" }, kindHint(a.kind ?? t.kind)));
+      // The kind's meaning is on the badge's "i"; the card shows the fact and where it is written.
       if (a.source) box.append(sourceDetail(a.source));
       return box;
     }

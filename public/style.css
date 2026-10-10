@@ -165,6 +165,9 @@ pre.raw { white-space: pre-wrap; word-break: break-all; background: var(--surfac
 .kind-badge.stated { border: 1px solid var(--border); color: var(--muted); }
 .kind-badge.derived { border: 1px dashed var(--accent); color: var(--accent); }
 .kind-badge.generated { border: 1px dotted var(--muted); color: var(--muted); }
+.kind-badge { display: inline-flex; align-items: center; gap: 4px; }
+.kind-badge .info { display: inline-grid; place-items: center; width: 11px; height: 11px; border-radius: 50%; border: 1px solid currentColor;
+  font: italic 600 8px/1 Georgia, serif; opacity: .8; }
 .card.derived { border-style: dashed; }
 .card.rule { color: var(--accent); }
 .neighbours button.derived { border-style: dashed; }
