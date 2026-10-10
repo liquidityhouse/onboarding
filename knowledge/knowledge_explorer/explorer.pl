@@ -29,6 +29,7 @@ component(api_check, script).
 component(mcp_check, script).
 component(code_export, script).
 component(readme_builder, script).
+component(github_commits, script).
 
 executes_in(ui, browser).
 executes_in(server, node).
@@ -52,6 +53,7 @@ source_file(api_check, 'scripts/api-check.ts').
 source_file(mcp_check, 'scripts/mcp-check.ts').
 source_file(code_export, 'scripts/export-code.ts').
 source_file(readme_builder, 'scripts/readme.ts').
+source_file(github_commits, 'scripts/github-commits.ts').
 
 purpose(knowledge_base, 'to hold the engine that reasons and explains (kb/) and the knowledge packs it loads (knowledge/): every fact and rule, the vocabulary explanations are built from, and the requests it answers').
 
@@ -177,6 +179,7 @@ practice(isolate_reflection).
 practice(regenerate_readme).
 practice(check_audit).
 practice(try_locally).
+practice(record_outside_data).
 
 purpose(write_once, 'to state a fact only when nothing else records it, and add a rule for anything that follows from other facts').
 purpose(generate_recorded, 'to generate what the repository already records (knowledge files and packs, packages, npm scripts, file descriptions, imports, and the code that implements each endpoint and tool) instead of restating it, each generated fact pointing to the line it was read from').
@@ -187,6 +190,7 @@ purpose(fresh_format, 'to format text into a fresh variable and then unify (Url 
 purpose(dynamic_rules, 'to declare rules the explorer explains as dynamic, because clause/2 cannot read static predicates in Trealla').
 purpose(isolate_reflection, 'to ask predicate_property/2 only under negation (\\+ \\+ to keep the answer), never catch errors from clause/2, and walk terms with separate clauses and functor/3 and arg/3 rather than if-then-else or =.., because in Trealla these leave or lose bindings when backtracking').
 purpose(check_audit, 'to look at the audit before adding facts: a candidate that saves symbols means knowledge is repeated, and a rule that saves none is kept for what it explains').
+purpose(record_outside_data, 'to keep facts read from outside the repository (GitHub, Slack) in a pack data file that says where each was read from, when, and by which agent or npm script, so every such fact and every conclusion resting on it can show it').
 purpose(try_locally, 'to try a change as a local override first (in the explorer or with change_facts), and write it into its pack once it holds up; state/ is never committed').
 purpose(regenerate_readme, 'to change the knowledge (knowledge packs, file headers, package.json) and run npm run readme, rather than editing README.md').
 

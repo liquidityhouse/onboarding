@@ -98,6 +98,7 @@ repo(adminx, liquidity_house).
 repo(payx, liquidity_house).
 repo(creditx, liquidity_house).
 repo(tokenx, liquidity_house).
+repo(infrastructure, liquidity_house).
 
 % --- Slack ---
 % First login is at the workspace link, through an invitation to your personal email.

@@ -177,6 +177,19 @@ generation(G, _, origin, obj([label-L, file-F, line-N, text-T])) :-
     once(catch(generated_origin(G, F, N, T), _, fail)), label_of(generated_origin, L).
 generation(_, P, generator, obj([label-L, file-F, line-N, text-T])) :-
     once(catch(generator_code(P, F, N, T), _, fail)), label_of(generator_code, L).
+% For facts from a pack data file: the page each was read from, how the file was made (which
+% agent or npm command, when), and the script that makes it again (its header comment).
+generation(G, _, read_from, obj([label-L, url-U])) :-
+    once(catch(generated_from(G, U), _, fail)), label_of(generated_from, L).
+generation(G, _, made_by, obj([label-L, file-F, line-N, text-T])) :-
+    once(catch(generated_origin(G, D, _, _), _, fail)),
+    once(catch(made_by(D, How), _, fail)),
+    once(catch(generated_origin(made_by(D, How), F, N, T), _, fail)), label_of(made_by, L).
+generation(G, _, script, obj([label-L, file-F, line-N, text-T])) :-
+    once(catch(generated_origin(G, D, _, _), _, fail)),
+    once(catch(made_with(D, Script), _, fail)),
+    once(catch(file_summary(Script, S), _, fail)),
+    once(catch(generated_origin(file_summary(Script, S), F, N, T), _, fail)), label_of(made_with, L).
 
 % The change behind a local fact, for everyone: who made it, how and when.
 change_of(G, J) :- once(local_change(Id, add, G, B, V, At, S)), !, change_json(Id, add, G, B, V, At, S, J).
@@ -264,6 +277,21 @@ progress_op(G, true, obj([op-add, fact-C, text-T])) :- \+ catch(G, _, fail), for
 progress_op(G, false, obj([op-undo, id-Id])) :- once(local_change(Id, add, G, _, _, _, _)).
 progress_op(G, false, obj([op-remove, fact-C, text-T, site-S])) :-
     \+ local_fact(G), catch(G, _, fail), fact_source(G, S), format(atom(C), "~q", [G]), sentence(G, T).
+
+% The facts a proof rests on that were recorded from outside the repository (pack data
+% files), each with where it was read from and how, for technical roles.
+proof_sources(Role, P, Us) :-
+    role_feature(Role, technical), !,
+    findall(obj([fact-T|L]), ( proof_leaf(P, G), catch(generated_origin(G, D, _, _), _, fail),
+                               catch(made_by(D, _), _, fail), fact_source(G, obj(L)), sentence(G, T) ), Us0),
+    dedupe(Us0, Us).
+proof_sources(_, _, []).
+
+% The given facts at the leaves of a proof (separate clauses: practice isolate_reflection).
+proof_leaf(rule(G, true, _, _), G).
+proof_leaf(rule(_, B, _, Sub), G) :- B \== true, proof_leaf(Sub, G).
+proof_leaf((A, _), G) :- proof_leaf(A, G).
+proof_leaf((_, B), G) :- proof_leaf(B, G).
 
 % A stated fact's source, for technical roles.
 stated_source(Role, G, [source-J]) :- role_feature(Role, technical), fact_source(G, J), !.
@@ -513,13 +541,13 @@ explain_parsed(Text, G, Vs, Max, Role, J) :-
     first_per_key(Keyed, Sols0),   % one answer per distinct conclusion
     length(Sols0, N),
     take(Max, Sols0, Sols),
-    findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), kind-AK, via-Via, explanation-X, lines-arr(Ls)|Src]),
+    findall(obj([bindings-obj(Bs), text-T, severity-Sv, derived-bool(Dv), kind-AK, via-Via, explanation-X, lines-arr(Ls), used-arr(Us)|Src]),
             ( member(Vs1-G1-P1, Sols),
               findall(Name-Val, member(Name=Val, Vs1), Bs),
               sentence(G1, T), severity(G1, Sv), via_json(Role, P1, Via),
               ( P1 = rule(_, true, _, _) -> Dv = false, stated_source(Role, G1, Src) ; Dv = true, Src = [] ),
               ( Dv == true -> AK = derived ; fact_kind(G1, AK) ),
-              once(proof_lines(P1, 0, Lines)), lines_text(Lines, X),
+              once(proof_lines(P1, 0, Lines)), lines_text(Lines, X), proof_sources(Role, P1, Us),
               findall(obj([depth-D, kind-K, text-LT]), member(line(D, K, LT), Lines), Ls) ),
             Answers),
     ( N > 0 -> Holds = true ; Holds = false ),

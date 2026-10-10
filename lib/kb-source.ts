@@ -28,8 +28,15 @@ export interface Kb {
 
 const sha = (text: string, n: number) => createHash("sha1").update(text).digest("hex").slice(0, n);
 
-/** A pack's data file: facts of one relation recorded from outside the repository, one per line. */
-interface DataFile { file: string; text: string; summary?: string; relation: string; facts: (string | number)[][] }
+/**
+ * A pack's data file: facts of one relation recorded from outside the repository, one per line,
+ * with how they were made (made_by: which agent or npm command, when), the script that can
+ * make them again, and where each was read from (read_from, with {1}, {2}… for its arguments).
+ */
+interface DataFile {
+  file: string; text: string; summary?: string; relation: string; facts: (string | number)[][];
+  made_by?: string; script?: string; read_from?: string;
+}
 interface Pack { dir: string; files: string[]; summary?: string; needs: string[]; data: DataFile[]; text: string }
 interface Layout { engine: string[]; packs: Pack[]; manifestText: string; sources: string[] }
 
@@ -116,6 +123,7 @@ async function generatedFacts({ engine, packs, manifestText, sources }: Layout, 
     const term = `${name}(${args.map((a) => (typeof a === "number" ? String(a) : atom(a))).join(", ")})`;
     facts.push(`${term}.`);
     if (origin) facts.push(`generated_origin(${term}, ${atom(origin.file)}, ${origin.line}, ${atom(origin.text)}).`);
+    return term;
   };
   const inPackage = (section: string, key: string) => jsonLine("package.json", pkgText, section, key);
   for (const f of engine) fact("kb_file", ["knowledge_base", f], jsonLine("kb/manifest.json", manifestText, "engine", f));
@@ -129,7 +137,13 @@ async function generatedFacts({ engine, packs, manifestText, sources }: Layout, 
     for (const d of p.data) {
       fact("kb_file", [p.dir, d.file], jsonLine(`${p.dir}/pack.json`, p.text, "data", d.file.slice(p.dir.length + 1)));
       if (d.summary) fact("file_summary", [d.file, d.summary], keyLine(d.file, d.text, "summary"));
-      for (const row of d.facts) fact(d.relation, row, lineWith(d.file, d.text, JSON.stringify(row)));
+      if (d.made_by) fact("made_by", [d.file, d.made_by], keyLine(d.file, d.text, "made_by"));
+      if (d.script) fact("made_with", [d.file, d.script], keyLine(d.file, d.text, "script"));
+      for (const row of d.facts) {
+        const term = fact(d.relation, row, lineWith(d.file, d.text, JSON.stringify(row)));
+        const url = d.read_from?.replace(/\{(\d+)\}/g, (_, i: string) => encodeURIComponent(String(row[Number(i) - 1])));
+        if (url) facts.push(`generated_from(${term}, ${atom(url)}).`);
+      }
     }
   }
   for (const [name, version] of Object.entries(pkg.dependencies ?? {})) fact("package_version", [name, version], inPackage("dependencies", name));

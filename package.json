@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "export": "node scripts/export-code.ts",
     "mcp:check": "node scripts/mcp-check.ts",
+    "github-commits": "node scripts/github-commits.ts",
     "api:check": "node scripts/api-check.ts",
     "readme": "node scripts/readme.ts",
     "readme:check": "node scripts/readme.ts --check"
