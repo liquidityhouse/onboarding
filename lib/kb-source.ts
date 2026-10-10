@@ -1,6 +1,6 @@
 // The single knowledge source: the KB files in kb/manifest.json joined into one program, plus
 // facts generated from what the repository already records, versioned by content hash.
-// Shared by the web server and the MCP server, so both always see the same KB.
+// Shared by the web server's REST endpoints and MCP tools, so both always see the same KB.
 
 import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";

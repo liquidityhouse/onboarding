@@ -6,7 +6,7 @@
 % from kb/manifest.json; package_version, engine_requirement, npm_script and
 % npm_script_file from package.json; file_summary from each file's header
 % comment; clause_source from the explained rules as written. The knowledge is executable: the web server authorises endpoints with
-% can_call/2, the MCP server describes its tools with purpose/2, and README.md is
+% can_call/2, the MCP tools are described by purpose/2, and README.md is
 % composed from all of it (readme.pl).
 
 purpose(knowledge_explorer, 'to make onboarding, platform, risk and system knowledge explorable and explainable, for people in the explorer and for AI agents over MCP, from one Prolog knowledge base').
@@ -15,7 +15,7 @@ purpose(knowledge_explorer, 'to make onboarding, platform, risk and system knowl
 % A component's description is its source file's header comment (described_as/2).
 component(explorer_ui, ui).
 component(web_server, server).
-component(mcp_server, server).
+component(mcp_tools, module).
 component(kb_service, module).
 component(kb_source, module).
 component(prolog_engine, module).
@@ -35,7 +35,7 @@ executes_in(script, node).
 
 source_file(explorer_ui, 'public/app.ts').
 source_file(web_server, 'server.ts').
-source_file(mcp_server, 'mcp-server.ts').
+source_file(mcp_tools, 'lib/mcp-tools.ts').
 source_file(kb_service, 'lib/kb-service.ts').
 source_file(kb_source, 'lib/kb-source.ts').
 source_file(prolog_engine, 'lib/prolog.ts').
@@ -49,16 +49,18 @@ source_file(mcp_check, 'scripts/mcp-check.ts').
 source_file(code_export, 'scripts/export-code.ts').
 source_file(readme_builder, 'scripts/readme.ts').
 
-purpose(knowledge_base, 'to hold every fact and rule, the vocabulary explanations are built from, and the requests the servers ask').
+purpose(knowledge_base, 'to hold every fact and rule, the vocabulary explanations are built from, and the requests it answers').
 
 % --- What uses what (direct use only; relies_on/2 follows the chain) ---
 uses(explorer_ui, web_server).
 uses(explorer_ui, 'vis-network').
 uses(web_server, kb_service).
 uses(web_server, optimiser).
-uses(mcp_server, kb_service).
-uses(mcp_server, query_sandbox).
-uses(mcp_server, '@modelcontextprotocol/sdk').
+uses(web_server, mcp_tools).
+uses(web_server, '@modelcontextprotocol/sdk').
+uses(mcp_tools, kb_service).
+uses(mcp_tools, query_sandbox).
+uses(mcp_tools, '@modelcontextprotocol/sdk').
 uses(kb_service, kb_source).
 uses(kb_service, prolog_engine).
 uses(kb_source, knowledge_base).
@@ -67,7 +69,7 @@ uses(query_sandbox, trealla).
 uses(optimiser, 'clingo-wasm').
 uses(readme_builder, kb_service).
 uses(api_check, web_server).
-uses(mcp_check, mcp_server).
+uses(mcp_check, web_server).
 
 % Where the explorer is going: into AdminX (GOAT-22), so new UI work follows AdminX's
 % stack (React with shadcn components) rather than adding another framework.
@@ -75,14 +77,14 @@ planned_host(explorer_ui, adminx).
 
 % --- npm scripts that need more than the component they start ---
 purpose(dev, 'to run the web server and restart it whenever a source file changes').
-purpose(typecheck, 'to type-check the servers, the explorer and the scripts').
+purpose(typecheck, 'to type-check the server, the explorer and the scripts').
 purpose('readme:check', 'to fail when README.md differs from what the knowledge base would generate, for use in CI').
 
 % --- Identity: who is asking ---
 identity_setting(dev_identity, 'KB_AUTH=dev').
 identity_setting(proxy_identity, 'KB_AUTH=proxy').
-purpose(dev_identity, 'to let the explorer''s user picker choose who is asking; for local use only, since anyone can pick anyone').
-purpose(proxy_identity, 'to trust an email header set by an auth proxy (X-Forwarded-Email, or KB_EMAIL_HEADER) and match it to a person through email_address/2; the proxy must strip that header from client requests').
+purpose(dev_identity, 'to let the explorer''s user picker choose who is asking, and MCP calls name their role in scope; for local use only, since anyone can pick anyone, so POST /mcp then answers local clients only').
+purpose(proxy_identity, 'to trust an email header set by an auth proxy (X-Forwarded-Email, or KB_EMAIL_HEADER) and match it to a person through email_address/2, whose role the MCP tools then answer in; the proxy must strip that header from client requests').
 
 % --- REST endpoints: the feature each needs, and the knowledge request behind it ---
 % Every role has public and signed_in (schema.pl); the rest are role features.
@@ -98,6 +100,7 @@ access('GET /api/kb', technical).
 access('GET /api/kb.pl', technical).
 access('GET /api/audit', technical).
 access('POST /api/plan', technical).
+access('POST /mcp', signed_in).
 
 answers_with('GET /api/session', session).
 answers_with('GET /api/graph', graph).
@@ -123,7 +126,10 @@ tool_access(verify_task_onboarding, signed_in).
 tool_access(explain_rule_or_decision, signed_in).
 tool_access(query_knowledge_base, console).
 
-registered_in(mcp_server, '.mcp.json').
+% One transport, so there is one way in: Streamable HTTP on the web server, which is how
+% Claude Code reaches the tools (.mcp.json) and how a hosted explorer (AdminX) would offer them.
+mcp_transport(web_server, streamable_http).
+registered_in(web_server, '.mcp.json').
 
 purpose(get_knowledge_overview, 'to start here: list the domains a role can see, their relations, their entities by type, the services, and every rule in plain English').
 purpose(query_entity_context, 'to return the facts and derived conclusions within a few hops of one entity as triples, nearest first, with the type of every entity mentioned').
@@ -207,8 +213,9 @@ can_use(Role, Tool) :-
 
 served_by(Endpoint, web_server) :-
     access(Endpoint, _).
-served_by(Tool, mcp_server) :-
-    mcp_tool(Tool, _).
+served_by(Tool, Server) :-
+    mcp_tool(Tool, _),
+    mcp_transport(Server, _).
 
 % REST and MCP give the same answer when they share a knowledge request.
 same_answer(Endpoint, Tool) :-

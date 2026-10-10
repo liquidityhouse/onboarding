@@ -18,7 +18,7 @@ graph LR
   n5["kb_source (module)"]
   n6["knowledge_base (knowledge base)"]
   n7["mcp_check (script)"]
-  n8["mcp_server (server)"]
+  n8["mcp_tools (module)"]
   n9["optimiser (module)"]
   n10["prolog_engine (module)"]
   n11["query_sandbox (module)"]
@@ -30,6 +30,8 @@ graph LR
   n3 --> n14
   n15 --> n4
   n15 --> n9
+  n15 --> n8
+  n15 --> n0
   n8 --> n4
   n8 --> n11
   n8 --> n0
@@ -41,7 +43,7 @@ graph LR
   n9 --> n2
   n12 --> n4
   n1 --> n15
-  n7 --> n8
+  n7 --> n15
 ```
 
 ## Components
@@ -50,16 +52,16 @@ graph LR
 | --- | --- | --- | --- | --- |
 | `explorer_ui` | user interface | the browser | `public/app.ts` | The explorer UI: draws and filters the role-scoped knowledge the server sends, and shows how every derived fact was reached |
 | `web_server` | server | Node.js | `server.ts` | Knowledge explorer server: the only place the knowledge base is reasoned over |
-| `mcp_server` | server | Node.js | `mcp-server.ts` | MCP server: progressive access to the liquidity.house knowledge base for AI agents |
-| `kb_service` | module | Node.js | `lib/kb-service.ts` | The one live engine both servers share, rebuilt when the KB files change, with answers cached per KB version |
+| `mcp_tools` | module | Node.js | `lib/mcp-tools.ts` | The MCP tools for AI agents, served by the web server at POST /mcp (Streamable HTTP, stateless), so agents reach them by URL: localhost now, an AdminX endpoint later |
+| `kb_service` | module | Node.js | `lib/kb-service.ts` | The one live engine the web server and the scripts share, rebuilt when the KB files change, with answers cached per KB version |
 | `kb_source` | module | Node.js | `lib/kb-source.ts` | The single knowledge source: the KB files in kb/manifest.json joined into one program, plus facts generated from what the repository already records, versioned by content hash |
 | `prolog_engine` | module | Node.js | `lib/prolog.ts` | Trealla Prolog (WASM) engine wrapper: consults the KB program and runs api/1 requests |
 | `query_sandbox` | module | Node.js | `lib/sandbox.ts` and `lib/query-worker.ts` | Free-form queries (the MCP query_knowledge_base tool) run in a throwaway worker with a time limit, so a runaway goal or halt/0 cannot block or kill the shared engine |
 | `kb_types` | module | Node.js | `lib/kb-types.ts` | Shapes of the JSON the knowledge base answers with (kb/api.pl) |
 | `optimiser` | module | Node.js | `lib/optimiser.ts` and `kb/plan.lp` | Chooses which compression candidates to apply: kb/plan.lp, solved by clingo, finds the set that saves the most symbols within the asker's constraints, then the next best ones |
-| `knowledge_base` | knowledge base | — | — | Hold every fact and rule, the vocabulary explanations are built from, and the requests the servers ask |
+| `knowledge_base` | knowledge base | — | — | Hold every fact and rule, the vocabulary explanations are built from, and the requests it answers |
 | `api_check` | script | Node.js | `scripts/api-check.ts` | End-to-end check of the REST endpoints and their role scoping |
-| `mcp_check` | script | Node.js | `scripts/mcp-check.ts` | Smoke test for the MCP server over real stdio: lists the tools, then walks the discover → focus → verify → explain sequence an agent would follow, and checks that free-form queries are answered, refused outside their role and contained in the sandbox |
+| `mcp_check` | script | Node.js | `scripts/mcp-check.ts` | Smoke test for the MCP tools at the web server's POST /mcp, on servers started on spare ports: lists the tools, walks the discover → focus → verify → explain sequence an agent would follow, and checks that free-form queries are answered, refused outside their role and contained in the sandbox, that a signed-in person is held to their role, and that dev mode answers local clients only |
 | `code_export` | script | Node.js | `scripts/export-code.ts` | Bundles all application source into export/_code.txt for sharing as a single file |
 | `readme_builder` | script | Node.js | `scripts/readme.ts` | Composes README.md from the knowledge base: every heading, sentence and table cell comes from kb/*.pl |
 
@@ -76,10 +78,9 @@ npm start
 | --- | --- | --- |
 | `npm run start` | `node server.ts` | Knowledge explorer server: the only place the knowledge base is reasoned over |
 | `npm run dev` | `node --watch server.ts` | Run the web server and restart it whenever a source file changes |
-| `npm run typecheck` | `tsc --noEmit` | Type-check the servers, the explorer and the scripts |
+| `npm run typecheck` | `tsc --noEmit` | Type-check the server, the explorer and the scripts |
 | `npm run export` | `node scripts/export-code.ts` | Bundles all application source into export/_code.txt for sharing as a single file |
-| `npm run mcp` | `node mcp-server.ts` | MCP server: progressive access to the liquidity.house knowledge base for AI agents |
-| `npm run mcp:check` | `node scripts/mcp-check.ts` | Smoke test for the MCP server over real stdio: lists the tools, then walks the discover → focus → verify → explain sequence an agent would follow, and checks that free-form queries are answered, refused outside their role and contained in the sandbox |
+| `npm run mcp:check` | `node scripts/mcp-check.ts` | Smoke test for the MCP tools at the web server's POST /mcp, on servers started on spare ports: lists the tools, walks the discover → focus → verify → explain sequence an agent would follow, and checks that free-form queries are answered, refused outside their role and contained in the sandbox, that a signed-in person is held to their role, and that dev mode answers local clients only |
 | `npm run api:check` | `node scripts/api-check.ts` | End-to-end check of the REST endpoints and their role scoping |
 | `npm run readme` | `node scripts/readme.ts` | Composes README.md from the knowledge base: every heading, sentence and table cell comes from kb/*.pl |
 | `npm run readme:check` | `node scripts/readme.ts --check` | Fail when README.md differs from what the knowledge base would generate, for use in CI |
@@ -88,8 +89,8 @@ npm start
 
 | Identity mode | Setting | Description |
 | --- | --- | --- |
-| Dev identity | `KB_AUTH=dev` | Let the explorer's user picker choose who is asking; for local use only, since anyone can pick anyone |
-| Proxy identity | `KB_AUTH=proxy` | Trust an email header set by an auth proxy (X-Forwarded-Email, or KB_EMAIL_HEADER) and match it to a person through email_address/2; the proxy must strip that header from client requests |
+| Dev identity | `KB_AUTH=dev` | Let the explorer's user picker choose who is asking, and MCP calls name their role in scope; for local use only, since anyone can pick anyone, so POST /mcp then answers local clients only |
+| Proxy identity | `KB_AUTH=proxy` | Trust an email header set by an auth proxy (X-Forwarded-Email, or KB_EMAIL_HEADER) and match it to a person through email_address/2, whose role the MCP tools then answer in; the proxy must strip that header from client requests |
 
 Who may call each endpoint follows one rule: The role can call the endpoint when the endpoint requires the feature and the role has the feature.
 
@@ -101,7 +102,7 @@ Who may call each endpoint follows one rule: The role can call the endpoint when
 
 ## Knowledge files
 
-The knowledge base exists to hold every fact and rule, the vocabulary explanations are built from, and the requests the servers ask.
+The knowledge base exists to hold every fact and rule, the vocabulary explanations are built from, and the requests it answers.
 
 | File | Summary |
 | --- | --- |
@@ -112,7 +113,7 @@ The knowledge base exists to hold every fact and rule, the vocabulary explanatio
 | `kb/lexicon.pl` | The primitive vocabulary every label and explanation is built from |
 | `kb/schema.pl` | What is shown, where it belongs, how it looks and who sees it |
 | `kb/explain.pl` | Syllog-style meta-interpreter and a sentence composer |
-| `kb/api.pl` | The knowledge-graph bridge and the JSON requests the web and MCP servers ask |
+| `kb/api.pl` | The knowledge-graph bridge and the JSON requests the web server asks |
 | `kb/audit.pl` | What is stated, what is derived, and where the same knowledge could be said in fewer symbols |
 | `kb/readme.pl` | How README.md is composed from the knowledge base |
 
@@ -132,10 +133,11 @@ The knowledge base exists to hold every fact and rule, the vocabulary explanatio
 | `GET /api/kb.pl` | `technical` | — | — |
 | `GET /api/audit` | `technical` | `audit` | — |
 | `POST /api/plan` | `technical` | — | — |
+| `POST /mcp` | `signed_in` | — | — |
 
-## MCP server for AI agents
+## MCP tools for AI agents
 
-Server 'mcp_server' is registered for Claude Code in .mcp.json.
+Server 'web_server' offers the MCP tools over transport 'streamable_http'. Server 'web_server' is registered for Claude Code in .mcp.json.
 
 | MCP tool | Knowledge request | Endpoint | Description |
 | --- | --- | --- | --- |

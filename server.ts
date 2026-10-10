@@ -12,6 +12,7 @@
 //   GET  /api/kb, /api/kb.pl            the KB itself                 roles with the technical feature
 //   GET  /api/audit                     stated vs derived in symbols, compression candidates   technical
 //   POST /api/plan   { keep, kindsOff, maxRules, exceptions, alternatives }   best candidate sets   technical
+//   POST /mcp                           the MCP tools of lib/mcp-tools.ts over Streamable HTTP, stateless
 //   GET  /*                             ./public; *.ts served as JS with types stripped
 //
 // Which role may call which endpoint is knowledge, not code: kb/system.pl states what
@@ -19,9 +20,10 @@
 //
 // Identity (KB_AUTH):
 //   dev   (default) the UI's user picker sends X-Kb-User. For local use only: anyone can pick anyone.
+//         MCP calls name their role in `scope`, and /mcp answers local clients only.
 //   proxy an auth proxy in front sets KB_EMAIL_HEADER (default X-Forwarded-Email); the email is
 //         matched to a person through the KB's email_address/2. The proxy must strip that header
-//         from client requests.
+//         from client requests. MCP tools then answer in that person's role.
 //
 // Run: node server.ts   (Node >= 23.6; PORT, HOST, KB_AUTH, KB_EMAIL_HEADER)
 
@@ -29,8 +31,10 @@ import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { stripTypeScriptTypes } from "node:module";
 import { extname, join, normalize, resolve } from "node:path";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { current, type Current } from "./lib/kb-service.ts";
 import type { Audit, PlanRequest, Problem, Session, SessionInfo } from "./lib/kb-types.ts";
+import { knowledgeServer } from "./lib/mcp-tools.ts";
 import { plans } from "./lib/optimiser.ts";
 import { literal } from "./lib/prolog.ts";
 
@@ -237,6 +241,39 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL) {
   }
 }
 
+const LOCAL = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
+};
+
+/** MCP over Streamable HTTP, stateless: every POST gets a fresh server, so a restart loses no session. */
+async function mcp(req: IncomingMessage, res: ServerResponse) {
+  if (req.method !== "POST") return send(res, 405, JSON.stringify({ error: "MCP here is stateless: POST only" }), "application/json", { Allow: "POST" });
+  let session: Session | undefined;
+  if (AUTH === "proxy") {
+    const cur = await current();
+    session = await identify(req, cur);
+    await authorise(cur, session.role, "POST /mcp");
+  } else {
+    // Dev identity trusts whoever asks, so only local clients may: no other sites, no DNS rebinding.
+    const origin = header(req, "origin");
+    if (!LOCAL.has(hostOf(`http://${header(req, "host")}`)) || (origin && !LOCAL.has(hostOf(origin))))
+      throw new HttpError(403, "in dev mode the MCP endpoint only answers local clients");
+  }
+  const server = await knowledgeServer(session);
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+  res.on("close", () => {
+    void transport.close();
+    void server.close();
+  });
+  await server.connect(transport);
+  await transport.handleRequest(req, res, await body(req));
+}
+
 async function staticFile(res: ServerResponse, path: string) {
   const file = resolve(PUBLIC, "." + normalize(path === "/" ? "/index.html" : path));
   if (!file.startsWith(PUBLIC)) return send(res, 403, "forbidden", "text/plain");
@@ -254,10 +291,14 @@ async function staticFile(res: ServerResponse, path: string) {
 createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://x");
   try {
-    if (url.pathname.startsWith("/api/")) await api(req, res, url);
+    if (url.pathname === "/mcp") await mcp(req, res);
+    else if (url.pathname.startsWith("/api/")) await api(req, res, url);
     else await staticFile(res, decodeURIComponent(url.pathname));
   } catch (e) {
-    if (e instanceof HttpError) json(res, e.body, e.status);
+    if (res.headersSent) {
+      console.error(e);
+      res.end();
+    } else if (e instanceof HttpError) json(res, e.body, e.status);
     else {
       console.error(e);
       json(res, { error: "internal error" }, 500);

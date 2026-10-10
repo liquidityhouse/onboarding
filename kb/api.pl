@@ -1,6 +1,6 @@
-% api.pl — the knowledge-graph bridge and the JSON requests the web and MCP servers ask.
+% api.pl — the knowledge-graph bridge and the JSON requests the web server asks.
 %
-% The web server and the MCP server call api(Request) and parse the JSON written
+% The web server's REST endpoints and MCP tools call api(Request) and parse the JSON written
 % to stdout. Every request that returns knowledge takes the asker's role and
 % only answers from that role's domains.
 %   api(session(user(U))) / api(session(email(E)))  — who is asking, their role and scope
@@ -98,7 +98,7 @@ session_json(U, R, obj([user-U, name-N, role-R, role_label-RL, domains-arr(Ds), 
 api_term(allowed(Role, Endpoint), obj([allowed-bool(B)])) :-
     ( can_call(Role, Endpoint) -> B = true ; B = false ).
 
-% may_use(Role, Tool): the MCP server's authorisation, from can_use/2 (system.pl).
+% may_use(Role, Tool): the MCP tools' authorisation, from can_use/2 (system.pl).
 api_term(may_use(Role, Tool), obj([allowed-bool(B)])) :-
     ( can_use(Role, Tool) -> B = true ; B = false ).
 

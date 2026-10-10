@@ -65,6 +65,7 @@ kb_predicate(file_summary, 2, system).
 kb_predicate(engine_requirement, 2, system).
 kb_predicate(npm_script, 2, system).
 kb_predicate(registered_in, 2, system).
+kb_predicate(mcp_transport, 2, system).
 kb_predicate(identity_setting, 2, system).
 kb_predicate(offers, 2, system).
 
@@ -114,6 +115,7 @@ entity_type(E, Kind) :- catch(component(E, Kind), _, fail), !.
 entity_type(E, library) :- catch(package_version(E, _), _, fail), !.
 entity_type(E, endpoint) :- catch(access(E, _), _, fail), !.
 entity_type(E, tool) :- catch(mcp_tool(E, _), _, fail), !.
+entity_type(E, transport) :- catch(mcp_transport(_, E), _, fail), !.
 entity_type(E, request) :- catch((answers_with(_, E) ; mcp_tool(_, E)), _, fail), !.
 entity_type(E, feature) :- catch((access(_, E) ; role_feature(_, E)), _, fail), !.
 entity_type(E, kind) :- catch(executes_in(E, _), _, fail), !.
@@ -198,6 +200,7 @@ type_style(capability, '#ffa8a8', ellipse).
 type_style(practice, '#ced4da', ellipse).
 type_style(knowledge_kind, '#adb5bd', ellipse).
 type_style(technology, '#63e6be', diamond).
+type_style(transport, '#91a7ff', box).
 type_style(url, '#495057', text).
 type_style(value, '#adb5bd', box).
 type_style(concept, '#5c7cfa', dot).

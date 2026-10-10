@@ -1,4 +1,4 @@
-// The one live engine both servers share, rebuilt when the KB files change, with answers cached
+// The one live engine the web server and the scripts share, rebuilt when the KB files change, with answers cached
 // per KB version. Callers put the role in the cache key.
 
 import { loadKb, type Kb } from "./kb-source.ts";

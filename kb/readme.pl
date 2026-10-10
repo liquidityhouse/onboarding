@@ -107,8 +107,11 @@ readme_blocks(readme_rest, [table(Cols, Rows)]) :-
               ( same_answer(E, T) -> code_cell(T, TC) ; connective(none, TC) ) ),
             Rows).
 
-readme_blocks(readme_mcp, [para(Reg), table(Cols, Rows)]) :-
-    registered_in(mcp_server, Where), sentence(registered_in(mcp_server, Where), Reg),
+readme_blocks(readme_mcp, [para(Intro), table(Cols, Rows)]) :-
+    findall(S, ( ( mcp_transport(Sv, T), G = mcp_transport(Sv, T)
+                 ; registered_in(Sv, W), G = registered_in(Sv, W) ),
+                 sentence(G, S) ), Ss),
+    atomic_list_concat(Ss, ' ', Intro),
     headings([tool, request, endpoint, described_as], Cols),
     findall(arr([TC, RC, EC, D]),
             ( mcp_tool(T, R), code_cell(T, TC), code_cell(R, RC),

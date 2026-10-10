@@ -44,7 +44,7 @@ noun(readme_running, 'Running it').
 noun(readme_access, 'Who sees what').
 noun(readme_knowledge, 'Knowledge files').
 noun(readme_rest, 'REST API').
-noun(readme_mcp, 'MCP server for AI agents').
+noun(readme_mcp, 'MCP tools for AI agents').
 noun(readme_explorer, 'Using the explorer').
 noun(readme_practices, 'Working on the knowledge base').
 noun(npm_script, 'package script').
@@ -58,6 +58,7 @@ noun(compression, 'compression template').
 noun(api_docs_path, 'API docs path').
 noun(knowledge_kind, 'kind of knowledge').
 noun(nextjs, 'Next.js').
+noun(streamable_http, 'Streamable HTTP (POST /mcp)').
 noun(react, 'React').
 noun(tailwindcss, 'Tailwind CSS').
 noun(shadcn, 'shadcn/ui').
@@ -192,6 +193,7 @@ verb(npm_script, runs).
 verb(npm_script_file, runs).
 verb(runs_component, starts).
 verb(registered_in, 'is registered for Claude Code in').
+verb(mcp_transport, 'offers the MCP tools over').
 verb(offers, offers).
 verb(depends_on, 'depends on').
 verb(needs_setup, needs).

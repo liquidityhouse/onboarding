@@ -1,10 +1,8 @@
 {
   "mcpServers": {
     "liquidity-house-knowledge": {
-      "command": "node",
-      "args": [
-        "mcp-server.ts"
-      ]
+      "type": "http",
+      "url": "http://localhost:8765/mcp"
     }
   }
 }
