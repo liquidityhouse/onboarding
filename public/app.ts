@@ -234,7 +234,7 @@ function sourceDetail(src: Source, summary?: string): HTMLElement {
   return el("details", { className: "prolog" },
     el("summary", { title: "Show where this fact is written" }, summary ?? `Technical detail · ${whereWritten(src)}`),
     ...(summary ? [el("div", { className: "via-label" }, `Technical detail · ${whereWritten(src)}`)] : []),
-    el("div", { className: "via-label" }, src.generated ? "Generated fact" : "Fact as written"), prolog(src.text),
+    el("div", { className: "via-label" }, src.generated ? `${kindOf(src.kind ?? "generated").label} fact` : "Fact as written"), prolog(src.text),
     ...(src.read_from ? [el("div", { className: "via-label" }, `${src.read_from.label} · `,
       el("a", { href: src.read_from.url, target: "_blank", rel: "noopener", textContent: src.read_from.url }))] : []),
     ...(src.origin ? snippet(src.origin) : []),
@@ -320,7 +320,7 @@ function closePopover() {
 }
 
 /** A small "i" button that opens a popover with a title and a text. */
-function infoButton(title: string, text: string): HTMLElement {
+function infoButton(title: string, text: string, extra?: () => HTMLElement): HTMLElement {
   const button = el("button", { type: "button", className: "info-btn", textContent: "i" });
   button.setAttribute("aria-label", `About ${title.toLowerCase()}`);
   button.setAttribute("aria-expanded", "false");
@@ -329,22 +329,22 @@ function infoButton(title: string, text: string): HTMLElement {
     e.stopPropagation();
     const same = popover?.anchor === button;
     closePopover();
-    if (!same) openPopover(button, title, text);
+    if (!same) openPopover(button, title, text, extra?.());
   };
   return button;
 }
 
-function openPopover(anchor: HTMLElement, title: string, text: string) {
+function openPopover(anchor: HTMLElement, title: string, text: string, extra?: HTMLElement) {
   const close = el("button", { type: "button", className: "popover-close", textContent: "×" });
   close.setAttribute("aria-label", "Close");
   close.onclick = (e) => { e.stopPropagation(); closePopover(); anchor.focus(); };
-  const box = el("div", { className: "popover" }, el("div", { className: "popover-head" }, el("strong", {}, title), close), el("p", {}, text));
+  const box = el("div", { className: `popover${extra ? " wide" : ""}` }, el("div", { className: "popover-head" }, el("strong", {}, title), close), el("p", {}, text), ...(extra ? [extra] : []));
   box.setAttribute("role", "dialog");
   box.setAttribute("aria-label", title);
   document.body.append(box);
   // Below the "i", kept inside the viewport (and so readable on a phone).
   const a = anchor.getBoundingClientRect();
-  const width = Math.min(300, window.innerWidth - 16);
+  const width = Math.min(extra ? 560 : 300, window.innerWidth - 16);
   box.style.width = `${width}px`;
   box.style.left = `${Math.max(8, Math.min(a.left + a.width / 2 - width / 2, window.innerWidth - width - 8))}px`;
   const below = a.bottom + 6;
@@ -1154,9 +1154,9 @@ async function renderAudit() {
   const a = audit!;
   const t = a.totals;
   const saved = t.without_rules - t.now;
-  const tile = (label: string, value: string, note: string, title = "") =>
-    el("div", { className: "tile", title }, el("div", { className: "tile-label" }, label), el("div", { className: "tile-value" }, value), el("div", { className: "muted" }, note));
-  const tabs = el("div", { className: "segmented" }, ...([["facts", "Stated vs derived"], ["relations", "Relations"], ["compression", "Compression"], ["implementations", "Implementations"]] as [AuditTab, string][])
+  const tile = (label: string, value: string, note: string, measure: string) =>
+    el("div", { className: "tile" }, measureInfo(a, measure, label), el("div", { className: "tile-label" }, label), el("div", { className: "tile-value" }, value), el("div", { className: "muted" }, note));
+  const tabs = el("div", { className: "segmented" }, ...([["facts", "Scopes"], ["relations", "Relations"], ["compression", "Compression"], ["implementations", "Implementations"]] as [AuditTab, string][])
     .map(([id, label]) => {
       const b = el("button", { type: "button", textContent: label });
       b.setAttribute("aria-selected", String(auditTab === id));
@@ -1167,30 +1167,32 @@ async function renderAudit() {
     : auditTab === "implementations" ? auditImplementations(a) : auditCompression(a);
   view.replaceChildren(
     el("div", { className: "audit-head" }, el("h2", {}, "Knowledge audit"),
-      el("p", { className: "muted" }, "Description length in symbols: a name, number or variable is one symbol; a link or sentence one per word-like segment. Generated facts are free; derived facts are what the rules save.")),
+      el("p", { className: "muted" }, "Description length in symbols: a name, number or variable is one symbol; a link or sentence one per word-like segment. Generated and imported facts cost the code that reads them, counted under implementations; derived facts are what the rules save.")),
     el("div", { className: "tiles" },
-      tile(kindOf("stated").label, `${t.stated.symbols}`, `${t.stated.facts} facts`, kindHint("stated")),
-      tile("Rules", `${t.rules.symbols}`, `${t.rules.clauses} clauses`),
-      tile("Lexicon", `${t.lexicon.symbols}`, `${t.lexicon.entries} words and primitives`),
-      tile(kindOf("derived").label, `${t.derived.symbols}`, `${t.derived.facts} facts, if they were stated`, kindHint("derived")),
-      tile(kindOf("generated").label, `${t.generated.symbols}`, `${t.generated.facts} facts, free`, kindHint("generated")),
-      tile("Description length", `${t.now}`, `${t.without_rules} without rules: rules save ${saved} (${Math.round((saved / t.without_rules) * 100)}%)`, "Stated + rules + lexicon, against stated + derived + lexicon")),
+      tile(kindOf("stated").label, `${t.stated.symbols}`, `${t.stated.facts} facts`, "stated"),
+      tile("Rules", `${t.rules.symbols}`, `${t.rules.clauses} clauses`, "rules"),
+      tile("Lexicon", `${t.lexicon.symbols}`, `${t.lexicon.entries} words and primitives`, "lexicon"),
+      tile(kindOf("derived").label, `${t.derived.symbols}`, `${t.derived.facts} facts, if they were stated`, "derived"),
+      tile(kindOf("generated").label, `${t.generated.symbols}`, `${t.generated.facts} facts, read by code`, "generated"),
+      tile(kindOf("imported").label, `${t.imported.symbols}`, `${t.imported.facts} facts, read by code`, "imported"),
+      bandedTile(a),
+      tile("Description length", `${t.now}`, `${t.without_rules} without rules: rules save ${saved} (${Math.round((saved / t.without_rules) * 100)}%)`, "description_length")),
     tabs, body);
 }
 
-/** Every fact in scope, stated beside derived, grouped by relation. */
+/** Every fact in scope in a column per kind of knowledge, as the knowledge base names the kinds, grouped by relation. */
 function auditFacts(): HTMLElement {
   const filter = el("input", { type: "search", placeholder: "Filter facts…", className: "audit-filter" });
   const columns = el("div", { className: "fact-columns" });
   const draw = () => {
     const q = filter.value.toLowerCase();
     const rows = scopedTriples().filter((t) => !q || [t.s, t.p, t.o].some((v) => String(v).toLowerCase().includes(q)));
-    const column = (derived: boolean) => {
-      const mine = rows.filter((t) => t.derived === derived);
+    const column = (kind: KnowledgeKind) => {
+      const mine = rows.filter((t) => t.kind === kind);
       const groups = new Map<string, Triple[]>();
       for (const t of mine) (groups.get(t.p) ?? groups.set(t.p, []).get(t.p)!).push(t);
       return el("div", { className: "fact-column" },
-        el("h3", { className: "ex-section", title: kindHint(derived ? "derived" : "stated") }, `${kindOf(derived ? "derived" : "stated").label} `, kindBadge(derived ? "derived" : "stated"), ` ${mine.length}`),
+        el("h3", { className: "ex-section", title: kindHint(kind) }, `${kindOf(kind).label} `, kindBadge(kind), ` ${mine.length}`, kindInfo(kind)),
         ...[...groups].sort((x, y) => y[1].length - x[1].length).map(([p, ts]) =>
           el("details", { className: "fact-group", open: groups.size <= 6 }, el("summary", {}, `${p} `, el("span", { className: "muted" }, String(ts.length))),
             el("ul", { className: "fact-list" }, ...ts.map((t) => {
@@ -1202,7 +1204,7 @@ function auditFacts(): HTMLElement {
               return li;
             })))));
     };
-    columns.replaceChildren(column(false), column(true));
+    columns.replaceChildren(...snap.kinds.map((k) => column(k.id)));
   };
   filter.addEventListener("input", draw);
   draw();
@@ -1400,16 +1402,44 @@ function showRelation(id: string) {
 
 /** Compression candidates, and the optimiser that picks the best set under constraints. */
 /**
+ * A tile's "i": what its measure counts, as the audit says, and the rules that count it as written.
+ * @implements knowledge_audit
+ */
+function measureInfo(a: Audit, id: string, label: string): HTMLElement | string {
+  const m = a.measures.find((x) => x.id === id);
+  if (!m) return "";
+  const rules = () => el("details", { className: "prolog" }, el("summary", {}, `Technical detail · ${m.rules.length} rule${m.rules.length === 1 ? "" : "s"}`),
+    ...m.rules.flatMap((r) => [el("div", { className: "via-label" }, `${r.predicate} · `, el("span", { className: "path" }, `${r.file}:${r.line}`)), prolog(r.text)]));
+  const button = infoButton(label, m.text, m.rules.length ? rules : undefined);
+  button.classList.add("tile-info");
+  return button;
+}
+
+/** The implementations tile: their size, split into generators and capabilities, and how many snippets are in each band. */
+function bandedTile(a: Audit): HTMLElement {
+  const i = a.totals.implementations;
+  const bands = ["red", "yellow", "green"].filter((b) => b in i);
+  const box = el("div", { className: "tile clickable", title: "Open the implementations" },
+    measureInfo(a, "implementations", "Implementations"),
+    el("div", { className: "tile-label" }, "Implementations"), el("div", { className: "tile-value" }, `${i.symbols}`),
+    el("div", { className: "muted" }, `${i.snippets} snippets: ${i.generators} in generators, ${i.capabilities} in capabilities`),
+    el("div", { className: "bands" }, ...bands.map((b) => el("span", { className: `band ${b}`, title: `${i[b]} ${b}` }, `${i[b]}`))));
+  box.onclick = () => { auditTab = "implementations"; store.set("kbx:auditTab", auditTab); renderAudit(); };
+  return box;
+}
+
+/**
  * The code behind generated facts and behind the explorer's capabilities, endpoints and tools,
- * largest first, each opening to its snippet: candidates for streamlining the implementations.
+ * largest first and coloured by band, each opening to its snippet: candidates for streamlining.
  * @implements knowledge_audit
  */
 function auditImplementations(a: Audit): HTMLElement {
   const total = a.implementations.reduce((n, i) => n + i.symbols, 0);
-  const rows = a.implementations.map((i) => el("details", { className: "card implementation" },
-    el("summary", {}, el("strong", {}, `${i.symbols}`), ` symbols · ${i.kind} · ${i.id}`,
+  const rows = a.implementations.map((i) => el("details", { className: `card implementation band-${i.band}` },
+    el("summary", { title: `${i.band}: ${i.reason}` }, el("span", { className: `band ${i.band}` }, `${i.symbols}`), ` symbols · ${i.kind} · ${i.id}`,
       i.facts !== undefined ? el("span", { className: "muted" }, ` · ${i.facts} facts, ${(i.symbols / Math.max(1, i.facts)).toFixed(1)} symbols each`) : "",
-      el("span", { className: "muted path" }, ` · ${i.file}:${i.line}`)),
+      el("span", { className: "muted path" }, ` · ${i.file}:${i.line}`),
+      el("div", { className: `reason ${i.band}` }, `${i.band}: ${i.reason}`)),
     codeBlock(i.text, languageOf(i.file))));
   return el("div", { className: "implementations" },
     el("p", { className: "muted" }, `${a.implementations.length} snippets, ${total} symbols of code behind the generated facts and the capabilities; the largest are where streamlining saves most.`),
