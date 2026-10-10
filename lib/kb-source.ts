@@ -135,6 +135,12 @@ async function generatedFacts({ engine, packs, manifestText, sources }: Layout, 
     for (const f of p.files) fact("kb_file", [p.dir, f], jsonLine(`${p.dir}/pack.json`, p.text, "files", f.slice(p.dir.length + 1)));
   }
   for (const p of packs) for (const n of p.needs) fact("needs_pack", [p.dir, n], jsonLine(`${p.dir}/pack.json`, p.text, "needs", n));
+  for (const file of await describedFiles(sources)) {
+    const text = await readFile(join(ROOT, file), "utf8");
+    const summary = headerSummary(text);
+    if (summary) fact("file_summary", [file, summary], headerOrigin(file, text));
+  }
+  for (const p of packs) if (p.summary) fact("file_summary", [p.dir, p.summary], keyLine(`${p.dir}/pack.json`, p.text, "summary"));
   // Pack data files: each line of facts becomes a fact of the file's relation, pointing back to that line.
   for (const p of packs) {
     for (const d of p.data) {
@@ -158,12 +164,6 @@ async function generatedFacts({ engine, packs, manifestText, sources }: Layout, 
   for (const [name, command] of scripts) {
     for (const file of command.split(/\s+/).filter((w) => /\.(ts|js)$/.test(w))) fact("npm_script_file", [name, file], inPackage("scripts", name));
   }
-  for (const file of await describedFiles(sources)) {
-    const text = await readFile(join(ROOT, file), "utf8");
-    const summary = headerSummary(text);
-    if (summary) fact("file_summary", [file, summary], headerOrigin(file, text));
-  }
-  for (const p of packs) if (p.summary) fact("file_summary", [p.dir, p.summary], keyLine(`${p.dir}/pack.json`, p.text, "summary"));
   for (const file of (await describedFiles([])).filter((f) => f.endsWith(".ts"))) {
     const seen = new Set<string>();
     for (const i of imports(file, await readFile(join(ROOT, file), "utf8"))) {
@@ -173,8 +173,11 @@ async function generatedFacts({ engine, packs, manifestText, sources }: Layout, 
   }
   const sites = [...await implementations(), ...await taggedImplementations(), ...await fetchesOf("public/app.ts")];
   for (const site of sites) {
-    fact(site.relation ?? "implemented_in", site.relation === "fetches" ? [site.origin.file, site.id] : [site.id, site.origin.file], site.origin);
-    if (site.relation !== "fetches") facts.push(`code_symbols(${atom(site.origin.file)}, ${site.origin.line}, ${codeSymbols(site.origin.text)}).`);
+    if (site.relation === "fetches") fact("fetches", [site.origin.file, site.id], site.origin);
+    else {
+      fact("implemented_in", [site.id, site.origin.file], site.origin);
+      facts.push(`code_symbols(${atom(site.origin.file)}, ${site.origin.line}, ${codeSymbols(site.origin.text)}).`);
+    }
   }
   const store = "lib/override-store.ts";
   fact("keeps_state_in", [store, STATE_FILE], lineWith(store, await readFile(join(ROOT, store), "utf8"), "export const STATE_FILE"));

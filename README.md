@@ -192,10 +192,10 @@ Server 'web_server' offers the MCP tools over transport 'streamable_http'. Serve
 - **Entity types**: Show or hide each type of entity and change its colour and shape.
 - **Per-user settings**: Remember settings for each user and start newly visible domains ticked.
 - **Shareable state**: Keep the user, view, focus and depth in the URL, so a view can be shared.
-- **Knowledge audit**: Count what is stated, generated and derived in symbols, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints.
+- **Knowledge audit**: Count what is stated, generated and derived in symbols, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints, and rank the code behind generated facts and capabilities by its size in symbols, as candidates for streamlining.
 - **Local overrides**: Change facts here without editing the packs: paste facts or load them from a URL, edit or remove a fact from its card, and undo any change; changed facts are outlined in gold with an i saying who changed them, when and how, and the kinds filter can hide them.
 - **Setup checklist**: Tick off the steps of setting up a service, as the person picked at the top and in their role; ticks are local overrides shared with agents over MCP.
-- **Data provenance**: Show, for a fact read from outside the repository and for every conclusion resting on one, where it was read from, how and when its file was made, the script that makes it again, and the agent steps to copy when the script cannot run.
+- **Data provenance**: Show, for a fact read from outside the repository and for every conclusion resting on one, where it was read from, how and when its file was made, the script that makes it again, and the agent steps to copy to the clipboard for an agent when the script cannot run; over MCP, such explanations name the agent task to ask agent_instructions for.
 
 ## Working on the knowledge base
 
@@ -212,4 +212,5 @@ Server 'web_server' offers the MCP tools over transport 'streamable_http'. Serve
 - Try a change as a local override first (in the explorer or with change_facts), and write it into its pack once it holds up; state/ is never committed.
 - Keep facts read from outside the repository (GitHub, Slack) in a pack data file that says where each was read from, when, and by which agent or npm script, so every such fact and every conclusion resting on it can show it.
 - Define each predicate in one file, and spread one across files only on purpose, declared discontiguous like api_term/2; the loader warns otherwise, because two definitions add up and every call answers once per definition.
+- Tag each function that implements a capability with @implements <capability> in its doc comment, so implemented_in/2 is generated pointing at it (as fetches/2 is from the endpoints a page calls) and the audit can rank the code by cost.
 - Illustrative sample data: `nordbet`, `spinhaus` and `vegaplay`.

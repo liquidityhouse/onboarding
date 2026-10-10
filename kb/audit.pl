@@ -408,7 +408,8 @@ all_candidates(Role, Rels, Cands) :-
 % Candidates that pay come first; near misses (saving above -6) show what almost does.
 api_term(audit(Role), obj([problem-'unknown role'])) :- \+ role(Role), !.
 api_term(audit(Role), obj([totals-obj(Totals), relations-arr(RJs), kinds-arr(Kinds),
-                           candidates-arr(CJs), reads-arr(Reads)])) :-
+                           candidates-arr(CJs), reads-arr(Reads), implementations-arr(Is)])) :-
+    implementation_costs(Is),
     audit_rels(Role, Rels),
     findall(J, ( member(R, Rels), relation_json(Rels, R, J) ), RJs),
     totals(Rels, Totals),
@@ -421,6 +422,20 @@ api_term(audit(Role), obj([totals-obj(Totals), relations-arr(RJs), kinds-arr(Kin
     findall(obj([relation-P, reads-Q]),
             ( derived_predicate(P, _, D), role_domain(Role, D), rel_uses(P, Q) ), Reads0),
     sort(Reads0, Reads).
+
+% The code behind generated facts and behind the capabilities, endpoints and tools, by its size
+% in symbols (code_symbols/3, counted by lib/kb-source.ts), largest first: where streamlining an
+% implementation would save the most. A generator also says how many facts it produces.
+implementation_costs(Is) :-
+    findall(S-obj([kind-generator, id-P, file-F, line-L, symbols-S, facts-N, text-T]),
+            ( catch(generator_code(P, F, L, T), _, fail), catch(code_symbols(F, L, S), _, fail),
+              once(catch(generated_predicate(P, A), _, fail)), functor(H, P, A),
+              findall(x, catch(H, _, fail), Xs), length(Xs, N) ), Gs),
+    findall(S-obj([kind-implementation, id-Id, file-F, line-L, symbols-S, text-T]),
+            ( catch(generated_origin(implemented_in(Id, F), F, L, T), _, fail), catch(code_symbols(F, L, S), _, fail) ), Ims),
+    append(Gs, Ims, All),
+    sort(All, Unique), reverse(Unique, Sorted),   % a snippet counted twice is listed once
+    findall(J, member(_-J, Sorted), Is).
 
 totals(Rels, [stated-obj([facts-SN, symbols-SS]), generated-obj([facts-GN, symbols-GS]),
               derived-obj([facts-DN, symbols-DS]), rules-obj([clauses-RN, symbols-RS]),

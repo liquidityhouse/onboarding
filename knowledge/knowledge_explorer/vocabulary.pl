@@ -74,6 +74,7 @@ noun(reaches, part).
 subject(imports, file).
 verb(needs_pack, 'builds on').
 verb(implemented_in, 'is implemented in').
+verb(fetches, fetches).
 verb(keeps_state_in, 'keeps its state in').
 
 % Rule wording, when a relation's facts mix kinds of subject or its noun names something else.

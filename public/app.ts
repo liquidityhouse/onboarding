@@ -1130,7 +1130,7 @@ function overview(): HTMLElement {
 }
 
 // --- Audit: stated vs derived, in symbols, and what could be said more briefly ---
-type AuditTab = "facts" | "relations" | "compression";
+type AuditTab = "facts" | "relations" | "compression" | "implementations";
 let audit: Audit | null = null;
 let auditFor = "";
 let auditTab: AuditTab = store.get<AuditTab>("kbx:auditTab") ?? "compression";
@@ -1156,14 +1156,15 @@ async function renderAudit() {
   const saved = t.without_rules - t.now;
   const tile = (label: string, value: string, note: string, title = "") =>
     el("div", { className: "tile", title }, el("div", { className: "tile-label" }, label), el("div", { className: "tile-value" }, value), el("div", { className: "muted" }, note));
-  const tabs = el("div", { className: "segmented" }, ...([["facts", "Stated vs derived"], ["relations", "Relations"], ["compression", "Compression"]] as [AuditTab, string][])
+  const tabs = el("div", { className: "segmented" }, ...([["facts", "Stated vs derived"], ["relations", "Relations"], ["compression", "Compression"], ["implementations", "Implementations"]] as [AuditTab, string][])
     .map(([id, label]) => {
       const b = el("button", { type: "button", textContent: label });
       b.setAttribute("aria-selected", String(auditTab === id));
       b.onclick = () => { auditTab = id; store.set("kbx:auditTab", id); renderAudit(); };
       return b;
     }));
-  const body = auditTab === "facts" ? auditFacts() : auditTab === "relations" ? auditRelations(a) : auditCompression(a);
+  const body = auditTab === "facts" ? auditFacts() : auditTab === "relations" ? auditRelations(a)
+    : auditTab === "implementations" ? auditImplementations(a) : auditCompression(a);
   view.replaceChildren(
     el("div", { className: "audit-head" }, el("h2", {}, "Knowledge audit"),
       el("p", { className: "muted" }, "Description length in symbols: a name, number or variable is one symbol; a link or sentence one per word-like segment. Generated facts are free; derived facts are what the rules save.")),
@@ -1398,6 +1399,23 @@ function showRelation(id: string) {
 }
 
 /** Compression candidates, and the optimiser that picks the best set under constraints. */
+/**
+ * The code behind generated facts and behind the explorer's capabilities, endpoints and tools,
+ * largest first, each opening to its snippet: candidates for streamlining the implementations.
+ * @implements knowledge_audit
+ */
+function auditImplementations(a: Audit): HTMLElement {
+  const total = a.implementations.reduce((n, i) => n + i.symbols, 0);
+  const rows = a.implementations.map((i) => el("details", { className: "card implementation" },
+    el("summary", {}, el("strong", {}, `${i.symbols}`), ` symbols · ${i.kind} · ${i.id}`,
+      i.facts !== undefined ? el("span", { className: "muted" }, ` · ${i.facts} facts, ${(i.symbols / Math.max(1, i.facts)).toFixed(1)} symbols each`) : "",
+      el("span", { className: "muted path" }, ` · ${i.file}:${i.line}`)),
+    codeBlock(i.text, languageOf(i.file))));
+  return el("div", { className: "implementations" },
+    el("p", { className: "muted" }, `${a.implementations.length} snippets, ${total} symbols of code behind the generated facts and the capabilities; the largest are where streamlining saves most.`),
+    ...rows);
+}
+
 function auditCompression(a: Audit): HTMLElement {
   const kinds = new Map(a.kinds.map((k) => [k.id, k]));
   const shown = a.candidates.filter((c) => nearMisses || c.saving > 0);

@@ -168,9 +168,9 @@ purpose(focus, 'to re-centre on an entity by clicking or searching, go back thro
 purpose(scope, 'to toggle domains, single relations, derived facts, and value, link and description leaves').
 purpose(entity_types, 'to show or hide each type of entity and change its colour and shape').
 purpose(per_user_settings, 'to remember settings for each user and start newly visible domains ticked').
-purpose(knowledge_audit, 'to count what is stated, generated and derived in symbols, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints').
+purpose(knowledge_audit, 'to count what is stated, generated and derived in symbols, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints, and rank the code behind generated facts and capabilities by its size in symbols, as candidates for streamlining').
 purpose(local_overrides, 'to change facts here without editing the packs: paste facts or load them from a URL, edit or remove a fact from its card, and undo any change; changed facts are outlined in gold with an i saying who changed them, when and how, and the kinds filter can hide them').
-purpose(data_provenance, 'to show, for a fact read from outside the repository and for every conclusion resting on one, where it was read from, how and when its file was made, the script that makes it again, and the agent steps to copy when the script cannot run').
+purpose(data_provenance, 'to show, for a fact read from outside the repository and for every conclusion resting on one, where it was read from, how and when its file was made, the script that makes it again, and the agent steps to copy to the clipboard for an agent when the script cannot run; over MCP, such explanations name the agent task to ask agent_instructions for').
 purpose(setup_checklist, 'to tick off the steps of setting up a service, as the person picked at the top and in their role; ticks are local overrides shared with agents over MCP').
 purpose(shareable_state, 'to keep the user, view, focus and depth in the URL, so a view can be shared').
 
@@ -188,6 +188,7 @@ practice(check_audit).
 practice(try_locally).
 practice(record_outside_data).
 practice(one_definition).
+practice(tag_implementations).
 
 purpose(write_once, 'to state a fact only when nothing else records it, and add a rule for anything that follows from other facts').
 purpose(generate_recorded, 'to generate what the repository already records (knowledge files and packs, packages, npm scripts, file descriptions, imports, and the code that implements each endpoint and tool) instead of restating it, each generated fact pointing to the line it was read from').
@@ -198,6 +199,7 @@ purpose(fresh_format, 'to format text into a fresh variable and then unify (Url 
 purpose(dynamic_rules, 'to declare rules the explorer explains as dynamic, because clause/2 cannot read static predicates in Trealla').
 purpose(isolate_reflection, 'to ask predicate_property/2 only under negation (\\+ \\+ to keep the answer), never catch errors from clause/2, and walk terms with separate clauses and functor/3 and arg/3 rather than if-then-else or =.., because in Trealla these leave or lose bindings when backtracking').
 purpose(check_audit, 'to look at the audit before adding facts: a candidate that saves symbols means knowledge is repeated, and a rule that saves none is kept for what it explains').
+purpose(tag_implementations, 'to tag each function that implements a capability with @implements <capability> in its doc comment, so implemented_in/2 is generated pointing at it (as fetches/2 is from the endpoints a page calls) and the audit can rank the code by cost').
 purpose(one_definition, 'to define each predicate in one file, and spread one across files only on purpose, declared discontiguous like api_term/2; the loader warns otherwise, because two definitions add up and every call answers once per definition').
 purpose(record_outside_data, 'to keep facts read from outside the repository (GitHub, Slack) in a pack data file that says where each was read from, when, and by which agent or npm script, so every such fact and every conclusion resting on it can show it').
 purpose(try_locally, 'to try a change as a local override first (in the explorer or with change_facts), and write it into its pack once it holds up; state/ is never committed').

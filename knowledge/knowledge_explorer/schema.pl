@@ -13,6 +13,7 @@ kb_predicate(needs_pack, 2, knowledge_explorer).
 kb_predicate(imports, 2, knowledge_explorer).
 kb_predicate(reaches, 2, knowledge_explorer).
 kb_predicate(implemented_in, 2, knowledge_explorer).
+kb_predicate(fetches, 2, knowledge_explorer).
 kb_predicate(access, 2, knowledge_explorer).
 kb_predicate(answers_with, 2, knowledge_explorer).
 kb_predicate(mcp_tool, 2, knowledge_explorer).
@@ -41,7 +42,7 @@ derived_predicate(described_as, 2, knowledge_explorer).
 % --- Entity types (first matching rule wins) ---
 type_rule(E, text) :- catch((purpose(_, E) ; file_summary(_, E)), _, fail), !.
 type_rule(E, pack) :- catch(knowledge_pack(_, E), _, fail), !.
-type_rule(E, file) :- catch((source_file(_, E) ; kb_file(_, E) ; implemented_in(_, E) ; keeps_state_in(_, E) ; imports(E, _)), _, fail), !.
+type_rule(E, file) :- catch((source_file(_, E) ; kb_file(_, E) ; implemented_in(_, E) ; keeps_state_in(_, E) ; imports(E, _) ; fetches(E, _)), _, fail), !.
 type_rule(E, Kind) :- catch(component(E, Kind), _, fail), !.
 type_rule(E, library) :- catch(package_version(E, _), _, fail), !.
 type_rule(E, endpoint) :- catch(access(E, _), _, fail), !.

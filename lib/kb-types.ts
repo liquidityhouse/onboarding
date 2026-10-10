@@ -173,6 +173,9 @@ export interface Audit extends Problem {
   kinds: { id: string; label: string; description: string }[];
   candidates: Candidate[];
   reads: { relation: string; reads: string }[];
+  /** The code behind generated facts (generators, with the facts each produces) and behind the
+   *  capabilities, endpoints and tools (implementations), by size in symbols, largest first. */
+  implementations: { kind: "generator" | "implementation"; id: string; file: string; line: number; symbols: number; facts?: number; text: string }[];
 }
 /** POST /api/plan: constraints for choosing candidates. */
 export interface PlanRequest { keep?: string[]; kindsOff?: string[]; maxRules?: number; exceptions?: boolean; alternatives?: number }

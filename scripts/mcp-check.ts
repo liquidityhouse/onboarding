@@ -87,7 +87,11 @@ const sequence: Call[] = [
   ["query_knowledge_base", { goal: "commits_by(_, P, _), \\+ full_name(P, _)" }, false, (t) => JSON.parse(t).answers[0] === "false."],
   // Facts read from outside: a conclusion shows where they came from and how they were made.
   ["explain_rule_or_decision", { expression: "candidate_owner(riskx, Who)" }, false,
-    (t) => /graphs\/contributors/.test(t) && /made_by/.test(t) && /github-commits\.ts/.test(t)],
+    (t) => /graphs\/contributors/.test(t) && /made_by/.test(t) && /github-commits\.ts/.test(t)
+      && JSON.parse(t).refresh?.tool === "agent_instructions" && JSON.parse(t).refresh.tasks.includes("commit_counts")],
+  // What implements what is generated from the code: tagged functions and the endpoints a page calls.
+  ["query_knowledge_base", { goal: "implemented_in(data_provenance, F), fetches(F, 'GET /api/agent-instructions/:task')" }, false,
+    (t) => JSON.parse(t).answers[0].includes("public/app.ts")],
   // Agent steps for refreshing that data by hand, filled in from the knowledge base.
   // Steps built by rules: a count per active developer, a skip (with why) per inactive one.
   ["agent_instructions", { task: "commit_counts" }, false,
