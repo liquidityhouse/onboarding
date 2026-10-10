@@ -12,8 +12,6 @@
 % Each file adds the requests it answers (audit.pl, the explorer pack's readme.pl).
 :- discontiguous(api_term/2).
 
-:- discontiguous(api_term/2).
-
 % --- Universal meta-bridge ---
 % kb_triple(Subject, EdgeLabel, Object, Predicate, Kind)   Kind = fact | derived
 kb_triple(S, L, O, P, fact) :-
@@ -287,8 +285,8 @@ generation(G, _, agent_task, obj([label-L, id-Task])) :-
     once(catch(generated_origin(G, D, _, _), _, fail)),
     once(agent_task(Task, D)), label_of(agent_task, L).
 
-% agent_instructions(Task): the steps a pack gives an agent for a task, with {placeholders}
-% filled in from the pack's agent_value/3, and the file the task updates.
+% agent_instructions(Task): the steps a pack gives an agent for a task, composed by its rules
+% (task_step/3, one item each, in order) and worded by its step_text/2, and the file it updates.
 api_term(agent_instructions(Task), obj([problem-P, tasks-arr(Ts)])) :-
     \+ agent_task(Task, _), !,
     findall(T, agent_task(T, _), Ts),
@@ -296,18 +294,9 @@ api_term(agent_instructions(Task), obj([problem-P, tasks-arr(Ts)])) :-
 api_term(agent_instructions(Task), obj([task-Task, purpose-Pu, file-F, steps-arr(Ss)])) :-
     agent_task(Task, F),
     ( purpose(Task, P0) -> plain(P0, Pu) ; Pu = null ),
-    findall(K-V, agent_value(Task, K, V), KVs),
-    findall(N-S, ( agent_step(Task, N, S0), once(fill_all(KVs, S0, S)) ), Ps),
+    findall(N-T, ( task_step(Task, N, Item), once(step_text(Item, T)) ), Ps),
     keysort(Ps, Sorted),
-    findall(S, member(_-S, Sorted), Ss).
-
-% {Key} placeholders replaced by their values (replace_all/4 is in explain.pl).
-fill_all([], S, S).
-fill_all([K-V|KVs], S0, S) :-
-    format(atom(Key), "{~w}", [K]),
-    replace_all(S0, Key, V, S1),
-    fill_all(KVs, S1, S).
-
+    findall(T, member(_-T, Sorted), Ss).
 
 % The facts a proof rests on that were recorded from outside the repository (pack data
 % files), each with where it was read from and how, for technical roles.
