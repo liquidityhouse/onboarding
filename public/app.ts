@@ -252,12 +252,64 @@ function viaText(pred: string, via: Via | null | undefined): string {
   return `How: ${rule.text}\nHere: ${via.bindings.map((b) => `${b.name} = ${b.value}`).join(", ")}`;
 }
 
-/** A kind of knowledge as a badge; its meaning (from the knowledge base) shows on hover over the "i". */
+/** A kind of knowledge as a plain badge; its meaning opens from an "i" placed beside it (kindInfo). */
 function kindBadge(kind: KnowledgeKind) {
-  const info = el("span", { className: "info" }, "i");
-  info.setAttribute("aria-hidden", "true");
-  return el("span", { className: `kind-badge ${kind}`, title: kindHint(kind) }, kindOf(kind).label.toLowerCase(), info);
+  return el("span", { className: `kind-badge ${kind}` }, kindOf(kind).label.toLowerCase());
 }
+
+/** An "i" that opens the kind's meaning, as named and explained by the knowledge base. */
+const kindInfo = (kind: KnowledgeKind) => infoButton(kindOf(kind).label, kindOf(kind).hint);
+
+// --- Info popover: opens on click or tap, closes with ×, a click outside or Escape ---
+let popover: { box: HTMLElement; anchor: HTMLElement } | null = null;
+
+function closePopover() {
+  if (!popover) return;
+  popover.anchor.setAttribute("aria-expanded", "false");
+  popover.box.remove();
+  popover = null;
+}
+
+/** A small "i" button that opens a popover with a title and a text. */
+function infoButton(title: string, text: string): HTMLElement {
+  const button = el("button", { type: "button", className: "info-btn", textContent: "i" });
+  button.setAttribute("aria-label", `About ${title.toLowerCase()}`);
+  button.setAttribute("aria-expanded", "false");
+  button.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const same = popover?.anchor === button;
+    closePopover();
+    if (!same) openPopover(button, title, text);
+  };
+  return button;
+}
+
+function openPopover(anchor: HTMLElement, title: string, text: string) {
+  const close = el("button", { type: "button", className: "popover-close", textContent: "×" });
+  close.setAttribute("aria-label", "Close");
+  close.onclick = (e) => { e.stopPropagation(); closePopover(); anchor.focus(); };
+  const box = el("div", { className: "popover" }, el("div", { className: "popover-head" }, el("strong", {}, title), close), el("p", {}, text));
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-label", title);
+  document.body.append(box);
+  // Below the "i", kept inside the viewport (and so readable on a phone).
+  const a = anchor.getBoundingClientRect();
+  const width = Math.min(300, window.innerWidth - 16);
+  box.style.width = `${width}px`;
+  box.style.left = `${Math.max(8, Math.min(a.left + a.width / 2 - width / 2, window.innerWidth - width - 8))}px`;
+  const below = a.bottom + 6;
+  box.style.top = `${below + box.offsetHeight > window.innerHeight - 8 ? Math.max(8, a.top - box.offsetHeight - 6) : below}px`;
+  anchor.setAttribute("aria-expanded", "true");
+  popover = { box, anchor };
+}
+
+document.addEventListener("pointerdown", (e) => {
+  if (popover && !popover.box.contains(e.target as Node) && e.target !== popover.anchor) closePopover();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePopover(); });
+window.addEventListener("resize", closePopover);
+document.addEventListener("scroll", closePopover, true);
 
 /** A Prolog literal for a goal sent to /api/explain-goal (parsed there, never run as code). */
 const lit = (x: string | number) =>
@@ -641,7 +693,8 @@ function kindToggle(kind: KnowledgeKind, count: number, after: () => void): HTML
     save();
     after();
   };
-  return el("label", { title: kindHint(kind) }, input, ` ${kindOf(kind).label.toLowerCase()} `, el("span", { className: "muted" }, String(count)));
+  return el("div", { className: "kind-toggle" },
+    el("label", {}, input, ` ${kindOf(kind).label.toLowerCase()} `, el("span", { className: "muted" }, String(count))), kindInfo(kind));
 }
 
 function renderTypes() {
@@ -824,8 +877,8 @@ async function showTriple(t: Triple) {
   }
   // The heading is the fact itself (subject, relation, object); the relation alone is not a fact.
   const object = typeof t.o === "number" ? t.o.toLocaleString() : shortLabel(String(t.o));
-  const head = el("div", { className: "ex-head" }, el("h2", { textContent: `${t.s} ${t.p} ${object}` }), kindBadge(t.kind));
-  const relation = el("p", { className: "muted relation-line", title: kindHint(t.kind) }, `${snap.words.relation}: `, t.p,
+  const head = el("div", { className: "ex-head" }, el("h2", { textContent: `${t.s} ${t.p} ${object}` }), kindBadge(t.kind), kindInfo(t.kind));
+  const relation = el("p", { className: "muted relation-line" }, `${snap.words.relation}: `, t.p,
     can("technical") ? el("span", {}, ` (${t.pred})`) : "", ` · ${kindOf(t.kind).label.toLowerCase()}`);
   const others = t.derived ? rulesFor(t.pred).filter((r) => r.clause !== t.via?.rule) : [];
   const parts: HTMLElement[] = [head, relation, actions];

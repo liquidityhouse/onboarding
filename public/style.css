@@ -165,9 +165,19 @@ pre.raw { white-space: pre-wrap; word-break: break-all; background: var(--surfac
 .kind-badge.stated { border: 1px solid var(--border); color: var(--muted); }
 .kind-badge.derived { border: 1px dashed var(--accent); color: var(--accent); }
 .kind-badge.generated { border: 1px dotted var(--muted); color: var(--muted); }
-.kind-badge { display: inline-flex; align-items: center; gap: 4px; }
-.kind-badge .info { display: inline-grid; place-items: center; width: 11px; height: 11px; border-radius: 50%; border: 1px solid currentColor;
-  font: italic 600 8px/1 Georgia, serif; opacity: .8; }
+/* Info "i" and its popover (click or tap to open; ×, outside click or Escape to close) */
+.info-btn { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--muted); font: italic 600 11px/1 Georgia, serif;
+  cursor: pointer; vertical-align: middle; margin-left: 4px; flex: none; }
+.info-btn:hover, .info-btn[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.popover { position: fixed; z-index: 1000; background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0, 0, 0, .25); padding: 8px 10px; font-size: 13px; line-height: 1.45; }
+.popover-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.popover p { margin: 4px 0 2px; }
+.popover-close { border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; padding: 0 2px; cursor: pointer; }
+.popover-close:hover { color: var(--text); }
+.kind-toggle { display: flex; align-items: center; gap: 2px; }
+.ex-head .info-btn { margin-left: 2px; }
 .card.derived { border-style: dashed; }
 .card.rule { color: var(--accent); }
 .neighbours button.derived { border-style: dashed; }
