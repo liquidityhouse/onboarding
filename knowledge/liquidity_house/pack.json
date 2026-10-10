@@ -9,6 +9,7 @@
   "files": [
     "onboarding.pl",
     "riskx.pl",
+    "agent_tasks.pl",
     "schema.pl",
     "vocabulary.pl"
   ]

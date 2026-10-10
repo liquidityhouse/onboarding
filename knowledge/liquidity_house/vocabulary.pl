@@ -86,6 +86,7 @@ verb(onboarding, includes).
 verb(helps_with, 'helps with').
 verb(commits_by, 'was committed to by').
 verb(candidate_owner, 'may be owned by').
+verb(developer_login, 'commits as').
 verb(grants, 'gives access to').
 verb(public_api, offers).
 verb(api_gateway_needs, 'has an API gateway that needs').

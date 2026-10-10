@@ -73,6 +73,12 @@ everyone_has(public).
 everyone_has(signed_in).
 role_feature(Role, Feature) :- everyone_has(Feature), role(Role).
 
+% --- Agent tasks: steps a pack gives an agent, with {placeholders} filled from its facts ---
+% agent_task(Task, FileItUpdates), agent_step(Task, N, Text), agent_value(Task, Key, Value).
+:- dynamic(agent_task/2).
+:- dynamic(agent_step/3).
+:- dynamic(agent_value/3).
+
 % --- The explorer's name: the explorer's noun, after the organisation it explores ---
 :- dynamic(explores/2).
 app_title(Title) :-

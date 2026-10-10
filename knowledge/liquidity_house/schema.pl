@@ -73,6 +73,7 @@ derived_predicate(api_reference, 2, platform).
 derived_predicate(needs_access, 2, platform).
 derived_predicate(access_granted_by, 2, onboarding).
 derived_predicate(candidate_owner, 2, onboarding).
+derived_predicate(developer_login, 2, onboarding).
 derived_predicate(url, 2, onboarding).
 derived_predicate(sibling_repo, 2, onboarding).
 derived_predicate(belongs_to, 2, onboarding).
@@ -97,6 +98,7 @@ type_rule(E, job) :- catch(works_as(_, E), _, fail), !.
 type_rule(E, github_user) :- catch(github_login(_, E), _, fail), !.
 type_rule(E, work_area) :- catch(job_area(_, E), _, fail), !.
 type_rule(E, api) :- catch(public_api(_, E), _, fail), !.
+type_rule(E, agent_task) :- catch(agent_task(E, _), _, fail), !.
 type_rule(E, jira_project) :- catch(jira_site(E, _), _, fail), !.
 type_rule(E, dashboard) :- catch(dashboard(_, E), _, fail), !.
 type_rule(E, cluster) :- catch(cluster_domain(E, _), _, fail), !.
@@ -143,6 +145,7 @@ type_style(job, '#a9e34b', ellipse).
 type_style(work_area, '#d8f5a2', ellipse).
 type_style(api, '#22b8cf', diamond).
 type_style(github_user, '#495057', box).
+type_style(agent_task, '#ffd43b', triangle).
 
 % --- Who sees what (developer and admin come with the explorer pack) ---
 role(risk_officer).

@@ -195,6 +195,7 @@ riskx(agregate, metadata).
 :- dynamic(needs_access/2).
 :- dynamic(access_granted_by/2).
 :- dynamic(candidate_owner/2).
+:- dynamic(developer_login/2).
 
 % Members of a team also belong to the organisation the team is part of.
 belongs_to(Person, Org) :-
@@ -234,6 +235,14 @@ can_help_with(Person, Item) :-
 can_help_with(Person, Item) :-
     requires(Service, Item),
     candidate_owner(Service, Person).
+
+% A developer's GitHub user: an engineer still in Slack. The commit counts, their script and
+% the agent steps all count only these.
+developer_login(Person, Login) :-
+    works_as(Person, Job),
+    job_area(Job, engineering),
+    slack_member_id(Person, _),
+    github_login(Person, Login).
 
 % A repository's candidate owner: of the people still in Slack, whoever made the most of its
 % commits (two, when they made as many). Someone who left Slack is never a candidate.

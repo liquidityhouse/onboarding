@@ -278,6 +278,43 @@ progress_op(G, false, obj([op-undo, id-Id])) :- once(local_change(Id, add, G, _,
 progress_op(G, false, obj([op-remove, fact-C, text-T, site-S])) :-
     \+ local_fact(G), catch(G, _, fail), fact_source(G, S), format(atom(C), "~q", [G]), sentence(G, T).
 
+% For facts from a data file that an agent task updates: that task, whose steps the explorer
+% can copy for an agent (agent_instructions).
+generation(G, _, agent_task, obj([label-L, id-Task])) :-
+    once(catch(generated_origin(G, D, _, _), _, fail)),
+    once(agent_task(Task, D)), label_of(agent_task, L).
+
+% agent_instructions(Task): the steps a pack gives an agent for a task, with {placeholders}
+% filled in from the pack's agent_value/3, and the file the task updates.
+api_term(agent_instructions(Task), obj([problem-P, tasks-arr(Ts)])) :-
+    \+ agent_task(Task, _), !,
+    findall(T, agent_task(T, _), Ts),
+    format(atom(P), "no agent task ~w", [Task]).
+api_term(agent_instructions(Task), obj([task-Task, purpose-Pu, file-F, steps-arr(Ss)])) :-
+    agent_task(Task, F),
+    ( purpose(Task, P0) -> plain(P0, Pu) ; Pu = null ),
+    findall(K-V, agent_value(Task, K, V), KVs),
+    findall(N-S, ( agent_step(Task, N, S0), once(fill_all(KVs, S0, S)) ), Ps),
+    keysort(Ps, Sorted),
+    findall(S, member(_-S, Sorted), Ss).
+
+fill_all([], S, S).
+fill_all([K-V|KVs], S0, S) :-
+    format(atom(Key), "{~w}", [K]),
+    replace_all(S0, Key, V, S1),
+    fill_all(KVs, S1, S).
+
+% replace_all(Atom, From, To, Result): every From in Atom replaced by To, over character codes
+% (a cut after sub_atom/5 leaves its alternatives in Trealla).
+replace_all(A, From, To, R) :-
+    atom_codes(A, Cs), atom_codes(From, Fs), atom_codes(To, Ts),
+    replace_codes(Cs, Fs, Ts, Rs),
+    atom_codes(R0, Rs), R = R0.
+
+replace_codes([], _, _, []).
+replace_codes(Cs, Fs, Ts, Rs) :- append(Fs, Rest, Cs), !, replace_codes(Rest, Fs, Ts, R1), append(Ts, R1, Rs).
+replace_codes([C|Cs], Fs, Ts, [C|Rs]) :- replace_codes(Cs, Fs, Ts, Rs).
+
 % The facts a proof rests on that were recorded from outside the repository (pack data
 % files), each with where it was read from and how, for technical roles.
 proof_sources(Role, P, Us) :-
