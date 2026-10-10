@@ -138,6 +138,12 @@ try {
   const undone = await post(adam, "/api/overrides", { undo: all });
   check("every local change can be undone", undone.status === 200 && undone.body.changes?.length === 0, JSON.stringify(undone.body));
 
+  // Agent steps for refreshing outside data, for technical roles.
+  const steps = await adam("/api/agent-instructions/commit_counts");
+  check("agent steps are filled in from the knowledge base", steps.status === 200 && steps.body.steps?.length === 5 && /Arihtev/.test(steps.body.steps.join(" ")), JSON.stringify(steps.body).slice(0, 200));
+  check("an unknown agent task lists the known ones", (await adam("/api/agent-instructions/nothing")).status === 404);
+  check("agent steps are closed to the risk officer", (await dominic("/api/agent-instructions/commit_counts")).status === 403);
+
   check("context outside the role scope", (await dominic("/api/context/adam")).status === 404);
   const ctx = await adam("/api/context/injectx?depth=1&max=5");
   check("context is capped", ctx.status === 200 && ctx.body.triples.length === 5 && ctx.body.truncated === true);

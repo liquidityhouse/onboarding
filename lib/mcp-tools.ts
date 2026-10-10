@@ -9,6 +9,7 @@
 //   query_knowledge_base      any goal, run in a sandbox; for developers exploring directly
 //   record_progress           mark a service's setup steps done or not done, for a person
 //   change_facts              add, edit, remove or undo facts locally (lib/overrides.ts)
+//   agent_instructions        the steps a pack gives an agent for a task, e.g. refreshing a data file
 //
 // The answers come from the same Prolog requests (kb/api.pl) and shared engine
 // (lib/kb-service.ts) as the web server's REST endpoints, so edits to kb/*.pl apply at once.
@@ -259,6 +260,22 @@ export async function knowledgeServer(session?: Session): Promise<McpServer> {
           return failure(`Knowledge base error: ${(e as Error).message}`);
         }
       },
+    );
+
+  if (await offered("agent_instructions"))
+    server.registerTool(
+      "agent_instructions",
+      {
+        title: "Agent instructions",
+        description: describe("agent_instructions",
+          "Give a task id such as commit_counts; an unknown id lists the tasks. Follow the steps, then record in the file's made_by who did it, how and when."),
+        inputSchema: {
+          task: z.string().min(1).default("commit_counts").describe("Agent task id, e.g. commit_counts."),
+          ...scoped,
+        },
+        annotations: readOnly,
+      },
+      ({ task, scope }) => answer("agent_instructions", roleOf(scope), (e) => e.api<Problem>(`agent_instructions(${literal(task)})`)),
     );
 
   return server;

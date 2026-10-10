@@ -24,6 +24,9 @@ export interface Source {
   local?: boolean;
   /** Generated facts: where the fact was read from, and the code that generated it. */
   origin?: Snippet; generator?: Snippet;
+  /** Facts from a pack data file: the page each was read from, how the file was made (which agent
+   *  or npm command, when), the script that makes it again, and the agent task that does it by hand. */
+  read_from?: { label: string; url: string }; made_by?: Snippet; script?: Snippet; agent_task?: { label: string; id: string };
 }
 export interface Rule {
   predicate: string; clause: number; text: string; slots: string[];
@@ -125,6 +128,8 @@ export interface GoalExplanation extends Problem {
     via?: Via | null;
     /** Technical roles, stated answers: where the fact is written. */
     source?: Source;
+    /** Technical roles, derived answers: the facts it rests on that were read from outside the repository. */
+    used?: (Source & { fact: string })[];
     explanation: string; lines?: Line[];
   }[];
   rule?: string;

@@ -98,6 +98,7 @@ access('POST /api/plan', technical).
 access('GET /api/overrides', technical).
 access('POST /api/overrides', technical).
 access('POST /api/progress', signed_in).
+access('GET /api/agent-instructions/:task', technical).
 access('POST /mcp', signed_in).
 
 answers_with('GET /api/session', session).
@@ -111,6 +112,7 @@ answers_with('GET /api/audit', audit).
 answers_with('GET /api/overrides', overrides).
 answers_with('POST /api/overrides', fact_check).
 answers_with('POST /api/progress', progress_plan).
+answers_with('GET /api/agent-instructions/:task', agent_instructions).
 
 % --- MCP tools and the knowledge request each answers with ---
 mcp_tool(get_knowledge_overview, overview).
@@ -120,6 +122,7 @@ mcp_tool(explain_rule_or_decision, explain_goal).
 mcp_tool(query_knowledge_base, query).
 mcp_tool(record_progress, progress_plan).
 mcp_tool(change_facts, fact_check).
+mcp_tool(agent_instructions, agent_instructions).
 
 % What each tool requires; can_use/2 decides who may call it, as can_call/2 does for
 % endpoints. Free-form queries see the whole knowledge base, past role scoping.
@@ -130,6 +133,7 @@ tool_access(explain_rule_or_decision, signed_in).
 tool_access(query_knowledge_base, console).
 tool_access(record_progress, signed_in).
 tool_access(change_facts, technical).
+tool_access(agent_instructions, technical).
 
 % One transport, so there is one way in: Streamable HTTP on the web server, which is how
 % Claude Code reaches the tools (.mcp.json) and how a hosted explorer (AdminX) would offer them.
@@ -142,6 +146,7 @@ purpose(verify_task_onboarding, 'to infer everything needed to work on a service
 purpose(query_knowledge_base, 'to run any Prolog goal against the whole knowledge base, in a throwaway sandbox with a time limit, and list every answer; for direct exploration by developers, past the role scoping the other tools apply').
 purpose(record_progress, 'to mark the steps of setting up a service done or not done for a person, as local completed/2 facts, so their progress shows at once in the explorer and in verify_task_onboarding; marking every step not done resets the service for a run from scratch').
 purpose(change_facts, 'to add, edit or remove facts on this machine only, from Prolog text or a URL, or undo such changes; they show in the explorer as local overrides, marked with who made them, until someone writes them into a pack').
+purpose(agent_instructions, 'to hand an agent the steps a knowledge pack gives for a task, such as refreshing a data file in a signed-in browser when its script cannot run, with the repositories, people and file filled in from the facts').
 purpose(explain_rule_or_decision, 'to prove a goal such as soft_credit_limit(dope, Limit) and return its bindings with an English trace of the facts, rules and calculations used, or describe a rule by name').
 
 % --- What the explorer offers ---
@@ -155,6 +160,7 @@ offers(explorer_ui, shareable_state).
 offers(explorer_ui, knowledge_audit).
 offers(explorer_ui, local_overrides).
 offers(explorer_ui, setup_checklist).
+offers(explorer_ui, data_provenance).
 
 purpose(stated_and_derived, 'to mark every connection as stated (solid line) or derived by a rule (dashed): hover a connection for how it is inferred, click it for why it holds').
 purpose(views, 'to switch between the mind map, the hierarchy in four directions, the triple table and the audit').
@@ -164,6 +170,7 @@ purpose(entity_types, 'to show or hide each type of entity and change its colour
 purpose(per_user_settings, 'to remember settings for each user and start newly visible domains ticked').
 purpose(knowledge_audit, 'to count what is stated, generated and derived in symbols, open any relation beside it (its rule, what it reads and is read by, its facts), list compression candidates by the symbols they would save, and let an optimiser choose the best set under constraints').
 purpose(local_overrides, 'to change facts here without editing the packs: paste facts or load them from a URL, edit or remove a fact from its card, and undo any change; changed facts are outlined in gold with an i saying who changed them, when and how, and the kinds filter can hide them').
+purpose(data_provenance, 'to show, for a fact read from outside the repository and for every conclusion resting on one, where it was read from, how and when its file was made, the script that makes it again, and the agent steps to copy when the script cannot run').
 purpose(setup_checklist, 'to tick off the steps of setting up a service, as the person picked at the top and in their role; ticks are local overrides shared with agents over MCP').
 purpose(shareable_state, 'to keep the user, view, focus and depth in the URL, so a view can be shared').
 

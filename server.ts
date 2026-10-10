@@ -15,6 +15,7 @@
 //   GET  /api/overrides                 the local changes to facts (state/overrides.json)     technical
 //   POST /api/overrides  { add | url | remove | edit: {fact, with} | undo: [id] }            technical
 //   POST /api/progress   { service, items?, done, who? }   mark setup steps done or not done
+//   GET  /api/agent-instructions/:task  the steps a pack gives an agent for a task       technical
 //   POST /mcp                           the MCP tools of lib/mcp-tools.ts over Streamable HTTP, stateless
 //   GET  /*                             ./public; *.ts served as JS with types stripped
 //
@@ -121,6 +122,7 @@ const ENDPOINT: Record<string, string> = {
   overrides: "GET /api/overrides",
   "POST overrides": "POST /api/overrides",
   "POST progress": "POST /api/progress",
+  "agent-instructions": "GET /api/agent-instructions/:task",
   "POST mcp": "POST /mcp",
 };
 
@@ -250,6 +252,9 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL) {
     }
     case "overrides":
       return json(res, { changes: await listChanges() });
+    case "agent-instructions":
+      if (!arg) throw new HttpError(400, "missing task");
+      return answer(res, await cached(`agent|${arg}`, () => engine.api<Problem>(`agent_instructions(${literal(arg)})`)), 404);
     case "POST overrides":
       return answer(res, await changeFacts(changeRequest(await body(req, 70_000)), { user: session.user, via: "explorer" }));
     case "POST progress": {

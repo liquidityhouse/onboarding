@@ -85,6 +85,14 @@ const sequence: Call[] = [
   // Candidate owners: most commits among people still in Slack; unmatched GitHub users never own.
   ["query_knowledge_base", { goal: "candidate_owner(adminx, P)" }, false, (t) => JSON.parse(t).answers.join() === "P = gustav."],
   ["query_knowledge_base", { goal: "commits_by(_, P, _), \\+ full_name(P, _)" }, false, (t) => JSON.parse(t).answers[0] === "false."],
+  // Facts read from outside: a conclusion shows where they came from and how they were made.
+  ["explain_rule_or_decision", { expression: "candidate_owner(riskx, Who)" }, false,
+    (t) => /graphs\/contributors/.test(t) && /made_by/.test(t) && /github-commits\.ts/.test(t)],
+  // Agent steps for refreshing that data by hand, filled in from the knowledge base.
+  ["agent_instructions", { task: "commit_counts" }, false,
+    (t) => JSON.parse(t).steps.length === 5 && t.includes("gustavgenberg") && t.includes("github-commits.json")],
+  ["agent_instructions", { task: "nothing" }, true, (t) => JSON.parse(t).tasks.includes("commit_counts")],
+  ["agent_instructions", { task: "commit_counts", scope: "risk_officer" }, true, (t) => /not available to role/.test(t)],
 ];
 
 // --- Dev identity: each call names its role in `scope` ---
@@ -92,7 +100,7 @@ const dev = await start(8796, {});
 const viaUrl = await connect(http(8796));
 const devTools = (await viaUrl.listTools()).tools.map((t) => t.name);
 console.log(`tools: ${devTools.join(", ")}`);
-check("http: seven tools", devTools.length === 7);
+check("http: eight tools", devTools.length === 8);
 await calls("http", viaUrl, sequence);
 
 // Progress and local changes: recorded, refused where they should be, visible to queries, undone.

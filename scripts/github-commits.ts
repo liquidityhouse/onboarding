@@ -1,10 +1,12 @@
 // Counts each developer's commits in each liquidityhouse repository the knowledge base knows,
 // from the GitHub API, and writes the Liquidity House pack's github-commits.json (commits_by/3)
-// with where they were read from and how. Developers come from the knowledge base: engineers
-// with a GitHub user who are still in Slack; a commit on any branch counts once.
+// with where they were read from and how. Developers come from the knowledge base
+// (developer_login/2: engineers with a GitHub user, still in Slack); a commit on any branch
+// counts once. Without a token it prints the agent steps that do the same in a browser.
 //
-// Run: npm run github-commits   (GITHUB_TOKEN in .env: read-only Contents access to liquidityhouse;
-//      fine-grained tokens for the organisation work once an organisation owner approves them)
+// Run: npm run github-commits                  (GITHUB_TOKEN in .env: read-only Contents access to
+//      liquidityhouse; fine-grained tokens work once an organisation owner approves them)
+//      npm run github-commits -- --instructions (the agent steps, from the knowledge base)
 
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -19,9 +21,14 @@ try {
   process.loadEnvFile(join(ROOT, ".env"));
 } catch { /* no .env: the token may come from the environment */ }
 const token = process.env.GITHUB_TOKEN;
-if (!token) {
-  console.error("GITHUB_TOKEN is not set: copy .env.example to .env and put a token after the equals sign.");
-  process.exit(1);
+const { kb, engine } = await current();
+
+// The agent steps (agent_tasks.pl): what to do by hand, in a signed-in browser, when there is no token.
+if (!token || process.argv.includes("--instructions")) {
+  const steps = await engine.api<{ purpose: string; file: string; steps: string[] }>("agent_instructions(commit_counts)");
+  if (!token) console.error("GITHUB_TOKEN is not set (see .env.example). An agent can do the same in a signed-in browser:\n");
+  console.log(`${steps.purpose}.\n\n${steps.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`);
+  process.exit(token ? 0 : 1);
 }
 
 /** Each answer's bindings, e.g. "P = adam, L = 'ProgracomRasmus'." → { P: "adam", L: "ProgracomRasmus" }. */
@@ -50,10 +57,9 @@ async function all<T>(path: string): Promise<T[]> {
   }
 }
 
-const { kb } = await current();
 const [{ Org: org }] = await ask(kb.program, "github_account(liquidity_house, Org)");
 const repos = (await ask(kb.program, "repo(R, liquidity_house)")).map((a) => a.R);
-const logins = await ask(kb.program, "works_as(P, J), job_area(J, engineering), slack_member_id(P, _), github_login(P, L)");
+const logins = await ask(kb.program, "developer_login(P, L)");
 
 const rows: [string, string, number][] = [];
 for (const repo of repos) {

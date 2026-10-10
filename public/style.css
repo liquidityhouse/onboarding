@@ -321,3 +321,8 @@ tr.local td:last-child { border-right: 2px solid var(--gold); }
 .setup-steps li { padding: 3px 0; }
 .notice { padding: 8px 16px; background: var(--gold-bg); color: var(--gold-ink); border-bottom: 2px solid var(--gold); white-space: pre-wrap; }
 .notice.problem { background: var(--warn-bg); color: var(--warn); border-bottom-color: var(--warn); }
+
+/* Facts read from outside the repository: their agent steps, and those a conclusion rests on */
+.agent-steps { margin: 6px 0; }
+.agent-steps ol { margin: 6px 0 0; padding-left: 20px; font-size: 12.5px; }
+.used { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 6px; }

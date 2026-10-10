@@ -234,8 +234,32 @@ function sourceDetail(src: Source, summary?: string): HTMLElement {
     el("summary", { title: "Show where this fact is written" }, summary ?? `Technical detail · ${whereWritten(src)}`),
     ...(summary ? [el("div", { className: "via-label" }, `Technical detail · ${whereWritten(src)}`)] : []),
     el("div", { className: "via-label" }, src.generated ? "Generated fact" : "Fact as written"), prolog(src.text),
+    ...(src.read_from ? [el("div", { className: "via-label" }, `${src.read_from.label} · `,
+      el("a", { href: src.read_from.url, target: "_blank", rel: "noopener", textContent: src.read_from.url }))] : []),
     ...(src.origin ? snippet(src.origin) : []),
+    ...(src.made_by ? snippet(src.made_by) : []),
+    ...(src.script ? snippet(src.script) : []),
+    ...(src.agent_task ? [agentSteps(src.agent_task)] : []),
     ...(src.generator ? snippet(src.generator) : []));
+}
+
+/** The steps a pack gives an agent for the task that refreshes this fact's file, with a button to copy them. */
+function agentSteps(task: { label: string; id: string }): HTMLElement {
+  const copy = el("button", { type: "button", textContent: `Copy ${task.label}` });
+  const box = el("div", { className: "agent-steps" }, el("div", { className: "via-label" }, `${task.label} · `, el("span", { className: "path" }, task.id)), copy);
+  copy.onclick = async (e) => {
+    e.stopPropagation();
+    try {
+      const a = await api<{ purpose: string; file: string; steps: string[] }>(`/api/agent-instructions/${encodeURIComponent(task.id)}`);
+      const text = `${a.purpose}.\n\n${a.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
+      box.querySelector("ol")?.remove();
+      box.append(el("ol", {}, ...a.steps.map((s) => el("li", {}, s))));
+      await navigator.clipboard.writeText(text).then(() => notice(`Copied the ${task.label} for ${task.id}.`), () => notice("The steps are shown below; copying is not allowed here.", true));
+    } catch (err) {
+      notice((err as Error).message, true);
+    }
+  };
+  return box;
 }
 
 /** A rule clause's Prolog, folded, for technical roles. */
@@ -1008,6 +1032,8 @@ async function whyBody(t: Triple): Promise<HTMLElement> {
     }
     const via = a.via ?? t.via;
     box.append(viaBlock(t.pred, via, false, a.text), howWhyKey(), linesList(a.lines ?? [], ruleShown(a.lines ?? [], via)));
+    // Conclusions resting on facts read from outside the repository: where each came from, and how.
+    if (a.used?.length) box.append(el("div", { className: "used" }, ...a.used.map((u) => sourceDetail(u, u.fact))));
     return box;
   } catch (e) {
     return el("p", { className: "muted" }, (e as Error).message);
